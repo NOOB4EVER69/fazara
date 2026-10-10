@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fazara — Point of sale</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Cairo:wght@400;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap" rel="stylesheet">
 <!--
   FIRESTORE RULES (Firebase console → Firestore → Rules). Lets any signed-in user read and write:
 
@@ -86,27 +86,37 @@ video{width:100%;height:250px;object-fit:cover;display:none}
 
 /* receipt (shared by screen and print) */
 .rside{position:sticky;top:78px}
-.receipt{background:#fff;border-radius:16px 16px 0 0;padding:22px 20px 26px;box-shadow:0 10px 30px #10201e1a;position:relative;margin-bottom:24px}
-.receipt::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:linear-gradient(135deg,#fff 25%,transparent 25%) -6px 0,linear-gradient(225deg,#fff 25%,transparent 25%) -6px 0;background-size:12px 12px}
-.rc{font:14px/1.4 "Bricolage Grotesque","Cairo",system-ui,sans-serif;color:#111;font-variant-numeric:tabular-nums;position:relative}
-.rc-h{text-align:center;padding-bottom:14px}
-.rc-h .mark{background:#111}
-.rc-h h3{margin:9px 0 3px;font-size:22px;font-weight:800;letter-spacing:-.4px}
-.rc-h p{margin:0;font-size:12px;color:#66726f}
-.rc-i{border-top:1px dashed #b8c2bf;border-bottom:1px dashed #b8c2bf;padding:4px 0}
-.ri{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px 0}
-.ri+.ri{border-top:1px solid #eef2f1}
-.rn b{display:block;font-weight:600;overflow-wrap:anywhere}.rn small{color:#66726f;font-size:12px}
-.ra{font-weight:700;text-align:right}
+.receipt{background:#fffefa;border-radius:6px 6px 0 0;padding:28px 24px 32px;box-shadow:0 10px 30px #10201e1a;position:relative;margin-bottom:24px}
+.receipt::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:linear-gradient(135deg,#fffefa 25%,transparent 25%) -6px 0,linear-gradient(225deg,#fffefa 25%,transparent 25%) -6px 0;background-size:12px 12px}
+.rc{--serif:"Cormorant Garamond","Playfair Display",Georgia,"Times New Roman","Cairo",serif;font:13.5px/1.45 "Bricolage Grotesque","Cairo",system-ui,sans-serif;color:#000;font-variant-numeric:tabular-nums;position:relative}
+.rc-h{text-align:center}
+.rc-mono{display:inline-grid;place-items:center;width:48px;height:48px;border:1.5px solid #000;border-radius:50%;font:600 26px/1 var(--serif);margin-bottom:12px}
+.rc-h h3{margin:0;font:700 25px/1.15 var(--serif);text-transform:uppercase;overflow-wrap:anywhere}
+.rc-h h3.ls{letter-spacing:.26em;margin-right:-.26em}
+.rc-sub{margin-top:5px;font:italic 500 15px/1.2 var(--serif)}
+.orn{display:flex;align-items:center;gap:10px;margin:16px 0}
+.orn::before,.orn::after{content:"";flex:1;border-top:1px solid #000}
+.orn i{width:6px;height:6px;background:#000;transform:rotate(45deg);flex:none}
+.rc-m .mr{display:flex;justify-content:space-between;gap:12px;padding:2px 0;font-size:13px}
+.lab{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;color:#222}
+.rc-ch{display:flex;justify-content:space-between;padding:0 0 6px;border-bottom:1px solid #000;margin-top:14px}
+.ri{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:baseline;padding:8px 0}
+.rn b{display:block;font-weight:600;font-size:14px;overflow-wrap:anywhere}
+.rn small{font:italic 500 14px/1.2 var(--serif);color:#222}
+.ra{font-weight:600;text-align:right}
 .q{display:flex;align-items:center;gap:4px}.q button{width:28px;height:28px;border:1px solid #d3dcda;background:#fff;border-radius:8px;font-size:16px;cursor:pointer;line-height:1}.q b{min-width:22px;text-align:center}
-.rc-s{padding-top:8px}.tr{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.rc-s .tr{color:#4b5956}
-.rc-t{display:flex;justify-content:space-between;align-items:baseline;margin:10px 0 8px;padding:10px 0;border-top:2px solid #111;border-bottom:2px solid #111;font-size:16px;font-weight:700}
-.rc-t b{font-size:24px;font-weight:800}
-.rc-p .tr{font-size:13px;color:#4b5956}
-.rc-f{text-align:center;margin-top:18px;font-size:12px;color:#4b5956}.rc-f p{margin:0}.rc-f .soc{margin-top:8px;font-size:13px;color:#111}
-.rc-v{margin-top:12px;text-align:center;font-weight:800;letter-spacing:2px;color:#111;border:2px solid #111;padding:4px}
-.rc .empty{padding:30px 10px}
-.rz .tr{border-bottom:1px dotted #cfd7d5;padding:5px 0}.rz .tr.g{font-weight:700;font-size:16px;border-bottom:2px solid #111}.rz hr{border:0;border-top:1px dashed #b8c2bf;margin:10px 0}
+.rc-s{padding-top:6px;border-top:1px solid #000}.tr{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.rc-s .tr{font-size:13px}
+.rc-t{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0 10px;padding:10px 0;border-top:3px double #000;border-bottom:3px double #000}
+.rc-t span{font-size:12px;letter-spacing:.26em;text-transform:uppercase;font-weight:700}
+.rc-t b{font:700 29px/1 var(--serif)}.rc-t em{font:600 11px/1 "Bricolage Grotesque",sans-serif;font-style:normal;letter-spacing:.12em;margin-right:6px}
+.rc-p .tr{font-size:13px}
+.rc-f{text-align:center;margin-top:4px}.rc-f p{margin:0}
+.rc-f .ty{font:italic 600 19px/1.25 var(--serif)}.rc-f .sb{font-size:12px;margin-top:4px}
+.rc-f .soc{margin-top:14px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:600}
+.rc-f .soc b{display:block;margin-top:3px;font:700 17px/1.2 var(--serif);letter-spacing:.1em;text-transform:none}
+.rc-v{margin-top:14px;text-align:center;font-weight:800;letter-spacing:.3em;border:2px solid #000;padding:5px}
+.rc .empty{padding:30px 10px;color:#444}
+.rz .tr{border-bottom:1px dotted #999;padding:5px 0}.rz .tr.g{font-weight:700;font-size:15px;border-bottom:3px double #000}.rz hr{border:0;border-top:1px solid #000;margin:10px 0}
 
 /* payment box */
 .pm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -517,19 +527,25 @@ function addCard(){
 const rowH=(a,b,k='')=>`<div class="tr ${k}"><span>${a}</span><span>${b}</span></div>`;
 function tot(){const sub=cart.reduce((s,i)=>s+i.price*i.qty,0),d=disc.t==='pct'?sub*Math.min(disc.v,100)/100:Math.min(disc.v,sub),tax=(sub-d)*(cfg.tax||0)/100;return{sub:rd(sub),d:rd(d),tax:rd(tax),total:rd(sub-d+tax)}}
 const handle=()=>String(cfg.social||'').replace(/^@/,'').trim();
+const hasAr=s=>/[\u0600-\u06FF]/.test(s);
+function rcHead(sub){const st=(cfg.store||'Fazara').trim();return `<div class="rc-h"><span class="rc-mono">${esc(st.charAt(0).toUpperCase()||'F')}</span><h3 dir="auto" class="${hasAr(st)?'':'ls'}">${esc(st)}</h3>${sub?`<div class="rc-sub">${sub}</div>`:''}</div>`}
+const orn='<div class="orn"><i></i></div>';
 function rcHtml(s,liveMode){
-  const its=s.items||[],has=its.length>0,cash=s.cash!=null&&s.cash>=0;
+  const its=s.items||[],has=its.length>0,cash=s.cash!=null&&s.cash>=0,m=s.method||'cash';
   const lines=its.map(i=>{
     const sm=i.u&&i.u!==1?rd3(i.u)+' kg':(liveMode?num(i.price)+' each':i.qty+' × '+num(i.price));
     return `<div class="ri"><div class="rn"><b dir="auto">${esc(i.name)}</b><small>${sm}</small></div>${liveMode?`<div class="q"><button data-id="${i.id}" data-d="-1" aria-label="Fewer">−</button><b>${i.qty}</b><button data-id="${i.id}" data-d="1" aria-label="More">+</button></div>`:''}<div class="ra">${num(i.price*i.qty)}</div></div>`}).join('');
-  const m=s.method||'cash';
+  const mr=(a,b)=>`<div class="mr"><span class="lab">${a}</span><span>${b}</span></div>`;
   return `<div class="rc">
-    <div class="rc-h"><span class="mark">${esc((cfg.store||'F').trim().charAt(0).toUpperCase()||'F')}</span><h3 dir="auto">${esc(cfg.store)}</h3><p>${pad(s.no)} · ${fmt(s.at)}</p>${s.cashier?`<p>Cashier: ${esc(s.cashier)}</p>`:''}</div>
+    ${rcHead('Sales receipt')}${orn}
+    <div class="rc-m">${mr('Receipt',pad(s.no))}${mr('Date',fmt(s.at))}${s.cashier?mr('Served by',esc(s.cashier)):''}</div>
+    <div class="rc-ch"><span class="lab">Item</span><span class="lab">Amount</span></div>
     <div class="rc-i">${has?lines:'<div class="empty">Nothing scanned yet.<br>Scan a barcode or search for an item to start a sale.</div>'}</div>
     ${has?`<div class="rc-s">${rowH('Subtotal',num(s.sub))}${s.d?rowH('Discount','− '+num(s.d)):''}${s.tax?rowH('Tax '+(cfg.tax||0)+'%',num(s.tax)):''}</div>
-    <div class="rc-t"><span>Total</span><b>${money(s.total)}</b></div>
-    <div class="rc-p">${rowH('Paid by',PM[m])}${m==='cash'&&cash?rowH('Cash received',money(s.cash))+(s.cash>=s.total?rowH('Change',money(rd(s.cash-s.total))):''):''}${s.ref?rowH('Reference',esc(s.ref)):''}</div>`:''}
-    <div class="rc-f"><p>Thank you for shopping at ${esc(cfg.store)}</p>${handle()?`<p class="soc">Follow us on social media<br><b>@${esc(handle())}</b></p>`:''}</div>
+    <div class="rc-t"><span>Total</span><b><em>EGP</em>${num(s.total)}</b></div>
+    <div class="rc-p">${rowH('Settled by',PM[m])}${m==='cash'&&cash?rowH('Cash received',money(s.cash))+(s.cash>=s.total?rowH('Change',money(rd(s.cash-s.total))):''):''}${s.ref?rowH('Reference',esc(s.ref)):''}</div>`:''}
+    ${orn}
+    <div class="rc-f"><p class="ty" dir="auto">Thank you for choosing ${esc(cfg.store)}</p><p class="sb">We look forward to welcoming you again.</p>${handle()?`<p class="soc">Follow us<b>@${esc(handle())}</b></p>`:''}</div>
     ${s.void?'<div class="rc-v">VOIDED</div>':''}
   </div>`;
 }
@@ -588,7 +604,7 @@ function dayChip(){const T=shift&&shTotals(shift.id);$('chip').textContent=shift
 function startDlg(){$('shName').value=(shift&&shift.cashier)||(profile&&profile.name)||'';$('shFloat').value=ld(K('float'),'');if(!$('dlg').open)$('dlg').showModal()}
 function updVar(){const v=$('var'),c=parseFloat($('count').value);v.className='chg';v.textContent='';if(!shift||!(c>=0))return;const d=rd(c-expCash());v.textContent=d===0?'Drawer is balanced':(d>0?'Over by ':'Short by ')+money(Math.abs(d));v.classList.add(d===0?'ok':'bad')}
 function zHtml(r){const m=Object.keys(PM).map(k=>rowH(PM[k]+' ('+r.T.by[k].n+')',money(r.T.by[k].t))).join('');
-  return `<div class="rc rz"><div class="rc-h"><span class="mark">${esc((cfg.store||'F').charAt(0).toUpperCase())}</span><h3 dir="auto">${esc(cfg.store)}</h3><p>Shift report</p></div>${rowH('Cashier',esc(r.cashier))}${rowH('Opened',fmt(r.start))}${rowH('Closed',fmt(r.end))}<hr>${m}${rowH('Total sales ('+r.T.n+')',money(r.T.total),'g')}${rowH('Discounts given',money(r.T.disc))}${rowH('Voided receipts',r.T.voids)}<hr>${rowH('Opening cash',money(r.float))}${r.mv?rowH('Cash in/out',money(r.mv)):''}${rowH('Expected cash',money(r.expected))}${rowH('Counted cash',money(r.counted))}${rowH('Difference',(r.diff>0?'+':'')+money(r.diff),'g')}</div>`}
+  return `<div class="rc rz">${rcHead('Shift report')}${orn}${rowH('Cashier',esc(r.cashier))}${rowH('Opened',fmt(r.start))}${rowH('Closed',fmt(r.end))}<hr>${m}${rowH('Total sales ('+r.T.n+')',money(r.T.total),'g')}${rowH('Discounts given',money(r.T.disc))}${rowH('Voided receipts',r.T.voids)}<hr>${rowH('Opening cash',money(r.float))}${r.mv?rowH('Cash in/out',money(r.mv)):''}${rowH('Expected cash',money(r.expected))}${rowH('Counted cash',money(r.counted))}${rowH('Difference',(r.diff>0?'+':'')+money(r.diff),'g')}</div>`}
 function renderShift(){
   $('psl').innerHTML=shifts.length?shifts.slice(0,10).map(r=>`<div class="ln"><div class="nm">${esc(r.cashier)}<small>${fmt(r.start)} · ${money(r.T.total)} · ${r.diff===0?'balanced':(r.diff>0?'over ':'short ')+money(Math.abs(r.diff))}</small></div><span></span><div><button class="lnk" data-z="${r.id}">Reprint</button></div></div>`).join(''):'<div class="empty">Closed shifts appear here.</div>';
   if(!shift){$('shInfo').innerHTML='<div class="empty">No shift is open.</div><div class="row"><button class="btn p big" id="shOpen">Start shift</button></div>';$('shTot').innerHTML='';$('shOpen').onclick=startDlg;return}
