@@ -94,7 +94,7 @@ video{width:100%;height:250px;object-fit:cover;display:none}
 .rc>*:last-child{margin-bottom:0}
 .ar{font-family:"Cairo","Bricolage Grotesque",system-ui,sans-serif;line-height:1.55}
 .rc-h{text-align:center}
-.rc-logo{display:block;width:8.9em;max-width:70%;height:auto;margin:0 auto}
+.rc-logo{display:block;width:9.5em;max-width:70%;height:auto;margin:0 auto}
 .rc-sub{margin-top:.55em;font:italic 600 1.17em/1.2 var(--serif)}
 .orn{display:flex;align-items:center;gap:.7em;margin:1em 0}
 .orn::before,.orn::after{content:"";flex:1;border-top:.07em solid #000}
@@ -126,7 +126,7 @@ video{width:100%;height:250px;object-fit:cover;display:none}
 .rz .tr{border-bottom:.07em dotted #777;padding:.35em 0}.rz .tr.g{font-weight:800;font-size:1.103em;border-bottom:.2em double #000}.rz hr{border:0;border-top:.07em solid #000;margin:.7em 0}
 /* printed receipt: everything scales from the page width (--pw), so it fills any paper */
 #print{--pw:100vw}
-#print .rc{width:100%;box-sizing:border-box;padding:calc(var(--pw)*.055) calc(var(--pw)*.055) calc(var(--pw)*.04);font-size:calc(var(--pw)*.0533)}
+#print .rc{width:100%;box-sizing:border-box;padding:calc(var(--pw)*.045) calc(var(--pw)*.05) calc(var(--pw)*.035);font-size:calc(var(--pw)*var(--rf,.043))}
 
 /* payment box */
 .pm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -293,6 +293,7 @@ dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow
     <label class="lb" for="sSocial">Social media username (printed on receipts)</label><input id="sSocial" class="w100" placeholder="Fazara.eg">
     <div class="f2"><div><label class="lb" for="sTax">Tax rate (%)</label><input id="sTax" type="number" min="0" step="any" class="w100"></div><div><label class="lb" for="sPaper">Receipt paper</label><select id="sPaper" class="w100"><option value="auto">Fill the printer paper (recommended)</option><option value="r80">80 mm roll, fixed</option><option value="r58">58 mm roll, fixed</option></select></div></div>
     <label class="lb" for="sLang">Product names from the online database</label><select id="sLang" class="w100"><option value="en">English</option><option value="ar">Arabic (when available)</option></select>
+    <label class="lb" for="sSize">Receipt text size</label><select id="sSize" class="w100"><option value="s">Small</option><option value="m">Medium</option><option value="l">Large</option></select>
     <label class="sw" style="margin:14px 0 0"><input type="checkbox" id="sAuto">Print the receipt after every sale</label>
     <p class="hint">Changes save automatically and apply on every device.</p>
     <h2 style="margin-top:22px">Data</h2>
@@ -381,8 +382,8 @@ const PM={cash:'Cash',visa:'Visa',instapay:'InstaPay',wallet:'Wallet'};
 const REF={visa:'Card approval code or last 4 digits (optional)',instapay:'InstaPay reference number (optional)',wallet:'Wallet number or transaction ID (optional)'};
 $('mk').src=MONO;$('lgn').src=LOGO;{const ic=document.createElement('link');ic.rel='icon';ic.href=MONO;document.head.append(ic)}
 const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670\u0640]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');
-const DEF={store:'Fazara',social:'Fazara.eg',tax:0,lang:'en',paper:'auto',autoPrint:false,nextNo:1};
-const PAPERS=['auto','r80','r58'];
+const DEF={store:'Fazara',social:'Fazara.eg',tax:0,lang:'en',paper:'auto',autoPrint:false,rsize:'m',nextNo:1};
+const PAPERS=['auto','r80','r58'],RF={s:.037,m:.043,l:.053};
 
 /* ---------- state ---------- */
 let user=null,profile=null,cfg={...DEF},products={},byCode={},sales=[],shifts=[],moves=[],team=[];
@@ -594,9 +595,10 @@ async function printDoc(h){
   await Promise.all([...p.querySelectorAll('img')].map(i=>i.decode?i.decode().catch(()=>{}):0));
   if(!fixed)$('pgStyle').textContent='@page{margin:0}';
   else{
-    p.style.cssText='display:block;position:absolute;left:-9999px;top:0;width:'+fixed+'mm;--pw:'+fixed+'mm';
+    p.style.cssText='display:block;position:absolute;left:-9999px;top:0;width:'+fixed+'mm;--pw:'+fixed+'mm;--rf:'+(RF[cfg.rsize]||RF.m);
     const px=p.scrollHeight;p.style.cssText='';
     $('pgStyle').textContent='@page{size:'+fixed+'mm '+(Math.ceil(px*25.4/96)+4)+'mm;margin:0}'}
+  p.style.setProperty('--rf',RF[cfg.rsize]||RF.m);
   setTimeout(()=>window.print(),60)}
 function rText(s){return [cfg.store,pad(s.no)+' · '+fmt(s.at),'',...s.items.map(i=>`${i.name}  ${i.qty} × ${num(i.price)} = ${num(i.price*i.qty)}`),'','Total: '+money(s.total),'Paid by '+PM[s.method||'cash'],'','Thank you for shopping at '+cfg.store+(handle()?'\nFollow us @'+handle():'')].join('\n')}
 async function shareSale(s){const t=rText(s);try{if(navigator.share){await navigator.share({text:t});return}await navigator.clipboard.writeText(t);toast('Receipt copied. Paste it into WhatsApp.')}catch(e){}}
@@ -777,14 +779,14 @@ $('csv').onclick=()=>{const q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl('fazara
 
 /* ---------- settings ---------- */
 let svT;
-function saveCfg(){clearTimeout(svT);svT=setTimeout(()=>setDoc(doc(fs,'settings','store'),{store:cfg.store,social:cfg.social,tax:cfg.tax,lang:cfg.lang,paper:cfg.paper,autoPrint:!!cfg.autoPrint},{merge:true}).catch(syncErr),500)}
+function saveCfg(){clearTimeout(svT);svT=setTimeout(()=>setDoc(doc(fs,'settings','store'),{store:cfg.store,social:cfg.social,tax:cfg.tax,lang:cfg.lang,paper:cfg.paper,rsize:cfg.rsize,autoPrint:!!cfg.autoPrint},{merge:true}).catch(syncErr),500)}
 function renderSettings(){
-  if(!cfgFilled){cfgFilled=true;$('sName').value=cfg.store;$('sSocial').value=cfg.social;$('sTax').value=cfg.tax;$('sPaper').value=cfg.paper;$('sLang').value=cfg.lang;$('sAuto').checked=!!cfg.autoPrint}
+  if(!cfgFilled){cfgFilled=true;$('sName').value=cfg.store;$('sSocial').value=cfg.social;$('sTax').value=cfg.tax;$('sPaper').value=cfg.paper;$('sSize').value=RF[cfg.rsize]?cfg.rsize:'m';$('sLang').value=cfg.lang;$('sAuto').checked=!!cfg.autoPrint}
   const legacy=Object.keys(ld('scantill-products-v1',{})).length;$('mig').hidden=!legacy;$('migH').textContent=legacy?legacy+' products from the old ScanTill page are saved in this browser.':'';
   renderTeam();
 }
 const bind=(id,fn)=>$(id).addEventListener('input',()=>{fn($(id));render();saveCfg()});
-bind('sName',e=>cfg.store=e.value.trim()||'Fazara');bind('sSocial',e=>cfg.social=e.value.trim());bind('sTax',e=>cfg.tax=Math.max(0,parseFloat(e.value)||0));bind('sPaper',e=>cfg.paper=e.value);bind('sLang',e=>cfg.lang=e.value);
+bind('sName',e=>cfg.store=e.value.trim()||'Fazara');bind('sSocial',e=>cfg.social=e.value.trim());bind('sTax',e=>cfg.tax=Math.max(0,parseFloat(e.value)||0));bind('sPaper',e=>cfg.paper=e.value);bind('sSize',e=>cfg.rsize=e.value);bind('sLang',e=>cfg.lang=e.value);
 $('sAuto').onchange=()=>{cfg.autoPrint=$('sAuto').checked;saveCfg()};
 $('mig').onclick=async()=>{const o=ld('scantill-products-v1',{});$('mig').disabled=true;try{toast('Uploaded '+await importProducts(o)+' products')}catch(e){syncErr(e)}$('mig').disabled=false};
 function renderTeam(){
