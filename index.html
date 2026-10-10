@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fazara — Point of sale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+<!--
+  FIRESTORE RULES (Firebase console → Firestore → Rules). Lets any signed-in user read and write:
+
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      match /{document=**} { allow read, write: if request.auth != null; }
+    }
+  }
+
+  Create staff accounts in Firebase console → Authentication → Users → Add user.
+  The first account that signs in becomes the Owner. Owners can change roles in Settings.
+-->
+<style>
+:root{--bg:#f2f5f4;--card:#fff;--ink:#10201e;--mute:#62736f;--brand:#0b6b5f;--brand-d:#08524a;--tint:#e2f1ee;--amber:#f0a81c;--amber-t:#fdf3dc;--red:#c8322b;--red-t:#fdeceb;--line:#e1e7e5;--r:14px}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Bricolage Grotesque","Cairo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+body.cashier .own{display:none!important}
+button,input,select{font:inherit}
+h2{margin:0 0 12px;font-size:18px;letter-spacing:-.3px}h2 span{color:var(--mute);font-weight:400}
+
+/* boot + login */
+.boot{min-height:100vh;display:grid;place-content:center;gap:12px;text-align:center;color:var(--mute)}
+.mark{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:18px;line-height:1}
+.mark.big{width:56px;height:56px;font-size:28px;border-radius:16px}
+.auth{min-height:100vh;display:grid;place-items:center;padding:20px}
+.auth-card{width:min(400px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:30px 26px;box-shadow:0 20px 50px #10201e14}
+.auth-card h1{font-size:24px;margin:16px 0 4px;letter-spacing:-.5px}.auth-card p{margin:0;color:var(--mute)}
+.err{color:var(--red);font-size:14px;min-height:20px;margin:12px 0 0}.okm{color:var(--brand)}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;padding:10px clamp(14px,3vw,32px);background:var(--ink);color:#fff;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+.brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;letter-spacing:-.5px}
+nav{display:flex;gap:2px;margin:0 auto 0 8px;overflow-x:auto}
+nav button{background:none;border:0;color:#b7c7c4;font-weight:600;padding:9px 14px;border-radius:10px;cursor:pointer;white-space:nowrap}
+nav button.on{background:#fff;color:var(--ink)}
+.bdg{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:99px;background:var(--amber);color:#2a1d00;font-size:12px;font-weight:700;text-align:center}
+.hr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{font-size:13px;background:#ffffff1f;padding:6px 12px;border-radius:99px;white-space:nowrap}
+.chip.sync::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:7px}.chip.sync.off::before{background:var(--amber)}
+header .btn{background:#ffffff1f;color:#fff}
+
+main{max-width:1180px;margin:22px auto;padding:0 clamp(12px,3vw,24px)}
+.tab{display:none}.tab.on{display:block}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 410px;gap:20px;align-items:start}.grid.two{grid-template-columns:370px minmax(0,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.card+.card{margin-top:16px}
+
+/* controls */
+.row{display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap}
+.btn{border:0;border-radius:10px;padding:11px 16px;font-weight:600;cursor:pointer;background:#e9eff0;color:var(--ink)}
+.btn.p{background:var(--brand);color:#fff}.btn.p:hover{background:var(--brand-d)}
+.btn.d{color:var(--red);background:var(--red-t)}.btn.sm{padding:7px 12px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:not-allowed}.btn:active{transform:scale(.98)}
+input,select{border:1px solid #cbd6d3;border-radius:10px;padding:11px 12px;background:#fff;min-width:0;color:var(--ink)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid #0b6b5f66;outline-offset:1px}
+input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--brand)}
+.w100{width:100%}.big{flex:1;font-size:17px}
+.lb{display:block;font-size:13px;font-weight:600;color:var(--mute);margin:14px 0 5px}.row .lb{margin:0}
+.hint{color:var(--mute);font-size:13px;margin:10px 0 0;min-height:19px}
+.sw{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center}.row .sw{margin-left:auto}
+.lnk{border:0;background:none;color:var(--brand);font-size:14px;font-weight:600;cursor:pointer;padding:4px 7px}.lnk.r{color:var(--red)}
+.empty{text-align:center;color:var(--mute);padding:26px 10px;font-size:14px}
+
+/* scanner */
+.viewer{position:relative;background:#0c1a19;border-radius:12px;min-height:190px;display:grid;place-items:center;overflow:hidden;color:#cdd8d6;text-align:center;padding:10px}
+video{width:100%;height:250px;object-fit:cover;display:none}
+.laser{position:absolute;left:10%;right:10%;top:50%;height:2px;background:#ef4444;box-shadow:0 0 14px #ef4444;display:none;animation:sweep 2s ease-in-out infinite alternate}
+@keyframes sweep{from{top:28%}to{top:72%}}@media(prefers-reduced-motion:reduce){.laser{animation:none}}
+.found{margin-top:14px;border:2px solid var(--brand);background:var(--tint);border-radius:12px;padding:14px}
+.found input{width:100%}.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fc{font-size:12px;color:var(--mute);margin:5px 0 2px;word-break:break-all}
+.pi{display:flex;gap:10px;align-items:center;margin:8px 0}.pi img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:8px}
+.tag{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px;background:#fff;color:var(--ink)}
+.tag.low{background:var(--amber-t);color:#8a5a00}.tag.out{background:var(--red-t);color:var(--red)}.tag.ok{background:var(--tint);color:var(--brand)}
+.pk{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;cursor:pointer}.pk:hover{background:#fff}.pk small{display:block;color:var(--mute)}
+.th{width:44px;height:44px;object-fit:contain;border-radius:8px;background:#eef3f2;flex:none}
+.flash{animation:fl .5s}@keyframes fl{from{box-shadow:0 0 0 4px #0b6b5faa}to{box-shadow:0 0 0 0 #0b6b5f00}}
+
+/* receipt (shared by screen and print) */
+.rside{position:sticky;top:78px}
+.receipt{background:#fff;border-radius:16px 16px 0 0;padding:22px 20px 26px;box-shadow:0 10px 30px #10201e1a;position:relative;margin-bottom:24px}
+.receipt::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:linear-gradient(135deg,#fff 25%,transparent 25%) -6px 0,linear-gradient(225deg,#fff 25%,transparent 25%) -6px 0;background-size:12px 12px}
+.rc{font:14px/1.4 "Bricolage Grotesque","Cairo",system-ui,sans-serif;color:#111;font-variant-numeric:tabular-nums;position:relative}
+.rc-h{text-align:center;padding-bottom:14px}
+.rc-h .mark{background:#111}
+.rc-h h3{margin:9px 0 3px;font-size:22px;font-weight:800;letter-spacing:-.4px}
+.rc-h p{margin:0;font-size:12px;color:#66726f}
+.rc-i{border-top:1px dashed #b8c2bf;border-bottom:1px dashed #b8c2bf;padding:4px 0}
+.ri{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px 0}
+.ri+.ri{border-top:1px solid #eef2f1}
+.rn b{display:block;font-weight:600;overflow-wrap:anywhere}.rn small{color:#66726f;font-size:12px}
+.ra{font-weight:700;text-align:right}
+.q{display:flex;align-items:center;gap:4px}.q button{width:28px;height:28px;border:1px solid #d3dcda;background:#fff;border-radius:8px;font-size:16px;cursor:pointer;line-height:1}.q b{min-width:22px;text-align:center}
+.rc-s{padding-top:8px}.tr{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.rc-s .tr{color:#4b5956}
+.rc-t{display:flex;justify-content:space-between;align-items:baseline;margin:10px 0 8px;padding:10px 0;border-top:2px solid #111;border-bottom:2px solid #111;font-size:16px;font-weight:700}
+.rc-t b{font-size:24px;font-weight:800}
+.rc-p .tr{font-size:13px;color:#4b5956}
+.rc-f{text-align:center;margin-top:18px;font-size:12px;color:#4b5956}.rc-f p{margin:0}.rc-f .soc{margin-top:8px;font-size:13px;color:#111}
+.rc-v{margin-top:12px;text-align:center;font-weight:800;letter-spacing:2px;color:#111;border:2px solid #111;padding:4px}
+.rc .empty{padding:30px 10px}
+.rz .tr{border-bottom:1px dotted #cfd7d5;padding:5px 0}.rz .tr.g{font-weight:700;font-size:16px;border-bottom:2px solid #111}.rz hr{border:0;border-top:1px dashed #b8c2bf;margin:10px 0}
+
+/* payment box */
+.pm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pm button{border:2px solid var(--line);background:#fff;border-radius:10px;padding:10px 2px;font-size:14px;font-weight:600;cursor:pointer;color:var(--ink)}
+.pm button.on{border-color:var(--brand);background:var(--tint);color:var(--brand)}
+.chg{margin-top:12px;font-size:20px;font-weight:800;min-height:28px}.chg.bad{color:var(--red)}.chg.ok{color:var(--brand)}
+.heldBox .row{margin-top:4px}
+
+/* lists */
+.ln{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.ln:last-child{border-bottom:0}
+.ln .nm{overflow-wrap:anywhere;font-weight:600}.ln small{display:block;font-weight:400;color:var(--mute);font-size:12px}
+.amt{font-weight:700;text-align:right}.vd{opacity:.5}.vd .nm{text-decoration:line-through}
+.oh{text-align:right;min-width:84px}.oh b{font-size:20px;display:block;line-height:1.1}.oh small{font-size:12px;color:var(--mute)}
+.oh.low b{color:#8a5a00}.oh.out b{color:var(--red)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}.kpi small{display:block;color:var(--mute);font-size:13px}.kpi b{font-size:22px;letter-spacing:-.4px}
+.seg{display:flex;gap:4px;flex-wrap:wrap}.seg button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:7px 14px;font-weight:600;cursor:pointer;color:var(--mute)}.seg button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.bars{display:flex;align-items:stretch;gap:3px;height:150px;margin-top:6px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;min-width:0}
+.bar .col{flex:1;display:flex;align-items:flex-end;width:100%}.bar i{display:block;width:100%;background:var(--brand);border-radius:4px 4px 0 0;min-height:2px;opacity:.9}
+.bar span{font-size:10px;color:var(--mute);height:16px;margin-top:4px;white-space:nowrap}
+.mrow{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:5px 0;font-size:14px}.mrow .tk{height:8px;background:#e9efee;border-radius:99px;overflow:hidden}.mrow .tk i{display:block;height:100%;background:var(--brand)}
+.two-c{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-c .card+.card{margin-top:0}
+
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:12px;display:flex;gap:14px;align-items:center;max-width:92vw;z-index:50;box-shadow:0 10px 30px #0005}
+#toast button{background:none;border:0;color:#7fe6d6;font-weight:700;cursor:pointer}
+dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow:0 20px 60px #0006}dialog::backdrop{background:#10201ecc}dialog h2{margin:0 0 4px}
+
+#print{display:none}
+@media(max-width:900px){.grid,.grid.two,.two-c{grid-template-columns:1fr}.rside{position:static}nav{margin:0;width:100%;order:3}.hr{margin-left:auto}}
+@media print{
+  @page{margin:0}
+  body{background:#fff}
+  body>*:not(#print){display:none!important}
+  #print{display:block}
+  #print .rc{width:72mm;margin:0 auto;padding:6mm 3mm}
+  #print.w58 .rc{width:52mm}
+}
+</style>
+</head>
+<body>
+
+<div id="boot" class="boot"><span class="mark big" style="margin:0 auto">F</span><span>Loading…</span></div>
+
+<section id="auth" class="auth" hidden>
+  <form id="loginForm" class="auth-card" novalidate>
+    <span class="mark big">F</span>
+    <h1>Sign in to Fazara</h1>
+    <p>Use the email and password your manager gave you.</p>
+    <label class="lb" for="lEmail">Email</label><input id="lEmail" class="w100" type="email" autocomplete="username" inputmode="email" required>
+    <label class="lb" for="lPass">Password</label><input id="lPass" class="w100" type="password" autocomplete="current-password" required>
+    <p class="err" id="lErr" role="alert"></p>
+    <div class="row"><button class="btn p big" id="lGo" type="submit">Sign in</button></div>
+    <div class="row" style="justify-content:center"><button class="lnk" type="button" id="lForgot">Forgot password?</button></div>
+  </form>
+</section>
+
+<div id="app" hidden>
+<header>
+  <div class="brand"><span class="mark" id="mk">F</span><span id="storeName">Fazara</span></div>
+  <nav id="tabs">
+    <button data-t="checkout" class="on">Checkout</button>
+    <button data-t="products">Products</button>
+    <button data-t="stock">Stock<span class="bdg" id="lowBdg" hidden></span></button>
+    <button data-t="sales">Sales</button>
+    <button data-t="shift">Shift</button>
+    <button data-t="settings" class="own">Settings</button>
+  </nav>
+  <div class="hr"><span class="chip" id="chip"></span><span class="chip sync" id="sync">Online</span><button class="btn sm" id="out" title="Sign out">Sign out</button></div>
+</header>
+
+<main>
+<!-- CHECKOUT -->
+<section id="checkout" class="tab on"><div class="grid">
+  <div>
+    <div class="card">
+      <div class="viewer"><video id="video" playsinline muted></video><div id="ph"><div style="font-size:34px">▥</div><b>Camera is off</b><div class="hint" style="color:#9fb6b2">A USB scanner works too: just scan, no clicking needed.</div></div><i class="laser" id="laser"></i></div>
+      <div class="row"><button class="btn p" id="camOn">Start camera</button><button class="btn" id="camOff" disabled>Stop camera</button><label class="sw"><input type="checkbox" id="auto" checked>Add known items automatically</label></div>
+      <div class="row"><input class="big" id="code" placeholder="Scan a barcode or search by name" autocomplete="off" inputmode="search"><button class="btn p" id="go">Find</button></div>
+      <p class="hint" id="msg" role="status">Ready. Scan the first item.</p>
+      <div class="found" id="found" hidden>
+        <input id="fName" aria-label="Product name" dir="auto" style="font-weight:700;font-size:17px"><div class="fc" id="fCode"></div><div id="pinfo"></div><div id="fStock"></div>
+        <div class="f2"><div><label class="lb" for="fPrice">Price (EGP)</label><input id="fPrice" type="number" min="0" step="any" inputmode="decimal"></div><div><label class="lb" for="fQty">Quantity</label><input id="fQty" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div>
+        <label class="sw" style="margin:12px 0 0" id="saveRow"><input type="checkbox" id="fSave">Save this product and price for next time</label>
+        <div class="row"><button class="btn p big" id="addBtn">Add to receipt</button><button class="btn" id="cancelBtn">Cancel</button></div>
+      </div>
+      <div class="found" id="picks" hidden></div>
+    </div>
+    <div class="card heldBox" id="heldBox" hidden></div>
+  </div>
+  <aside class="rside">
+    <div class="receipt" id="rcpt"><div id="live"></div></div>
+    <div class="card">
+      <div class="row" style="margin-top:0"><span class="lb">Discount</span><select id="dt"><option value="pct">%</option><option value="amt">EGP</option></select><input id="dv" type="number" min="0" step="any" value="0" style="width:90px" inputmode="decimal"></div>
+      <div class="lb">Payment method</div>
+      <div class="pm" id="pm"><button data-m="cash" class="on">Cash</button><button data-m="visa">Visa</button><button data-m="instapay">InstaPay</button><button data-m="wallet">Wallet</button></div>
+      <div id="cashBox"><label class="lb" for="cash">Cash received</label><input class="big w100" id="cash" type="number" min="0" step="any" placeholder="0.00" inputmode="decimal"><div class="row" id="quick"></div></div>
+      <div id="refBox" hidden><label class="lb" for="ref" id="refLb">Reference (optional)</label><input class="w100" id="ref" autocomplete="off"></div>
+      <div class="chg" id="chg"></div>
+      <div class="row"><button class="btn p big" id="done" disabled>Complete sale</button><button class="btn" id="hold">Hold</button><button class="btn" id="prt">Print</button><button class="btn d" id="clr">Clear</button></div>
+    </div>
+  </aside>
+</div></section>
+
+<!-- PRODUCTS -->
+<section id="products" class="tab"><div class="grid two">
+  <div class="card"><h2 id="pfT">Add a product</h2>
+    <label class="lb" for="dbCode">Barcode, or 5-digit PLU for weighed items</label><div class="row" style="margin-top:0"><input id="dbCode" class="big"><button class="btn" id="dbFind">Look up</button></div>
+    <label class="lb" for="dbName">Product name</label><input id="dbName" class="w100" dir="auto">
+    <div class="f2"><div><label class="lb" for="dbType">Pricing</label><select id="dbType" class="w100"><option value="fixed">Per item</option><option value="weight">Per kilogram</option></select></div><div><label class="lb" for="dbPrice">Selling price (EGP)</label><input id="dbPrice" type="number" min="0" step="any" class="w100" inputmode="decimal"></div></div>
+    <p class="hint" id="wh">Price for one item.</p>
+    <div class="f2"><div class="own"><label class="lb" for="dbCost">Cost price (EGP)</label><input id="dbCost" type="number" min="0" step="any" class="w100" inputmode="decimal"></div><div><label class="lb" for="dbCat">Category</label><input id="dbCat" class="w100" dir="auto" placeholder="Optional"></div></div>
+    <label class="sw" style="margin:14px 0 0"><input type="checkbox" id="dbTrack" checked>Track stock for this product</label>
+    <div class="f2" id="stockF"><div><label class="lb" for="dbStock">On hand now</label><input id="dbStock" type="number" min="0" step="any" class="w100" inputmode="decimal"></div><div><label class="lb" for="dbMin">Warn me at</label><input id="dbMin" type="number" min="0" step="any" class="w100" inputmode="decimal" placeholder="e.g. 5"></div></div>
+    <p class="hint" id="stockHint"></p>
+    <div class="row"><button class="btn p big" id="sp">Save product</button><button class="btn" id="spX" hidden>Cancel edit</button></div>
+  </div>
+  <div class="card"><h2>Saved products <span id="dbn"></span></h2>
+    <div class="row" style="margin-top:0"><input class="big" id="dq" placeholder="Filter by name or barcode"><button class="btn" id="fill">Fill details</button><button class="btn" id="ex">Export</button><label class="btn" tabindex="0">Import<input id="im" type="file" accept=".json" hidden></label></div>
+    <div id="dbl"></div>
+  </div>
+</div></section>
+
+<!-- STOCK -->
+<section id="stock" class="tab">
+  <div class="kpis" id="stK"></div>
+  <div class="card">
+    <div class="row" style="margin-top:0"><input class="big" id="stq" placeholder="Search stock by name or barcode"><div class="seg" id="stF"><button data-f="all" class="on">All</button><button data-f="low">Low</button><button data-f="out">Out</button><button data-f="none">Not tracked</button></div><button class="btn" id="stCsv">Export CSV</button></div>
+    <div id="stl"></div>
+  </div>
+  <div class="card"><h2>Recent stock activity</h2><div id="stm"></div></div>
+</section>
+
+<!-- SALES -->
+<section id="sales" class="tab">
+  <div class="row" style="margin:0 0 14px"><div class="seg" id="rg"><button data-r="1" class="on">Today</button><button data-r="7">7 days</button><button data-r="30">30 days</button><button data-r="90">90 days</button></div></div>
+  <div class="kpis" id="slK"></div>
+  <div class="card"><h2 id="chT">Sales</h2><div id="chart"></div></div>
+  <div class="two-c" style="margin-top:16px">
+    <div class="card"><h2>Payment methods</h2><div id="slM"></div></div>
+    <div class="card"><h2>Top products</h2><div id="slT"></div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h2>Receipts <span id="sum"></span></h2>
+    <div class="row" style="margin-top:0"><input class="big" id="sq" placeholder="Search by receipt number, cashier or item"><button class="btn" id="csv">Export CSV</button></div>
+    <div id="sl"></div>
+  </div>
+</section>
+
+<!-- SHIFT -->
+<section id="shift" class="tab"><div class="grid two">
+  <div class="card"><h2>Current shift</h2><div id="shInfo"></div><div id="shTot"></div>
+    <div class="row"><button class="btn" id="mv">Cash in / out</button></div>
+    <label class="lb" for="count">Cash counted in the drawer (EGP)</label><input id="count" type="number" min="0" step="any" class="w100" inputmode="decimal"><div class="chg" id="var"></div>
+    <div class="row"><button class="btn p big" id="endShift">End shift and print report</button></div>
+  </div>
+  <div class="card"><h2>Past shifts</h2><div id="psl"></div></div>
+</div></section>
+
+<!-- SETTINGS -->
+<section id="settings" class="tab"><div class="grid two">
+  <div class="card"><h2>Store</h2>
+    <label class="lb" for="sName">Store name (printed on receipts)</label><input id="sName" class="w100" dir="auto">
+    <label class="lb" for="sSocial">Social media username (printed on receipts)</label><input id="sSocial" class="w100" placeholder="Fazara.eg">
+    <div class="f2"><div><label class="lb" for="sTax">Tax rate (%)</label><input id="sTax" type="number" min="0" step="any" class="w100"></div><div><label class="lb" for="sPaper">Receipt paper</label><select id="sPaper" class="w100"><option value="80">80 mm</option><option value="58">58 mm</option></select></div></div>
+    <label class="lb" for="sLang">Product names from the online database</label><select id="sLang" class="w100"><option value="en">English</option><option value="ar">Arabic (when available)</option></select>
+    <label class="sw" style="margin:14px 0 0"><input type="checkbox" id="sAuto">Print the receipt after every sale</label>
+    <p class="hint">Changes save automatically and apply on every device.</p>
+    <h2 style="margin-top:22px">Data</h2>
+    <div class="row" style="margin-top:0"><button class="btn" id="mig">Upload products saved on this device</button></div>
+    <p class="hint" id="migH"></p>
+  </div>
+  <div class="card"><h2>Team</h2><div id="team"></div>
+    <p class="hint">To add a staff member, create their account in Firebase → Authentication → Users. They appear here after their first sign-in.</p>
+  </div>
+</div></section>
+</main>
+</div>
+
+<div id="toast" hidden></div>
+<div id="print"></div>
+
+<dialog id="dlg"><h2>Start shift</h2><p class="hint" style="margin:0 0 4px">Count the cash in the drawer before the first sale.</p>
+  <label class="lb" for="shName">Cashier name</label><input id="shName" class="w100" autocomplete="off">
+  <label class="lb" for="shFloat">Opening cash in drawer (EGP)</label><input id="shFloat" type="number" min="0" step="any" class="w100" inputmode="decimal">
+  <div class="row"><button class="btn p big" id="shGo">Start shift</button></div></dialog>
+
+<dialog id="adj"><h2 id="adjT">Change stock</h2><p class="hint" id="adjS" style="margin:0"></p>
+  <label class="lb" for="adjM">Action</label><select id="adjM" class="w100"><option value="add">Add stock (delivery or customer return)</option><option value="remove">Remove stock (damaged, expired, used)</option><option value="set">Set the exact count (stock take)</option></select>
+  <label class="lb" for="adjQ" id="adjQL">Quantity to add</label><input id="adjQ" type="number" min="0" step="any" class="w100" inputmode="decimal">
+  <div id="adjCB" class="own"><label class="lb" for="adjC">New cost per unit (EGP, optional)</label><input id="adjC" type="number" min="0" step="any" class="w100" inputmode="decimal"></div>
+  <label class="lb" for="adjN">Note (optional)</label><input id="adjN" class="w100" dir="auto" placeholder="Supplier, reason…">
+  <div class="row"><button class="btn p big" id="adjGo">Save</button><button class="btn" id="adjX">Cancel</button></div></dialog>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,getDoc,getDocs,setDoc,updateDoc,deleteDoc,onSnapshot,query,where,orderBy,limit,writeBatch,increment,runTransaction} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const firebaseConfig={
+  apiKey:"AIzaSyDUVhHe6__0w5wm3Xt0YzFZgkapWTnc8YE",
+  authDomain:"samsm-8de67.firebaseapp.com",
+  projectId:"samsm-8de67",
+  storageBucket:"samsm-8de67.firebasestorage.app",
+  messagingSenderId:"1088568814513",
+  appId:"1:1088568814513:web:7a97ee4878fa65acf3ab90"
+};
+const app=initializeApp(firebaseConfig),auth=getAuth(app);
+const fs=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const dl=(n,t,mime)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:mime}));a.download=n;a.click()};
+const rd=x=>Math.round(x*100)/100,rd3=x=>Math.round(x*1000)/1000;
+const num=n=>Number(n||0).toLocaleString('en-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=n=>'EGP '+num(n);
+const pad=n=>'#'+String(n).padStart(4,'0');
+const fmt=t=>new Date(t).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+const fmtTime=t=>new Date(t).toLocaleTimeString('en-GB',{timeStyle:'short'});
+const sum=(a,f)=>rd(a.reduce((x,i)=>x+f(i),0));
+const clean=o=>JSON.parse(JSON.stringify(o));
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const pidOf=code=>String(code).replace(/[\/\s:]/g,'_');
+const live=s=>!s.void;
+const PM={cash:'Cash',visa:'Visa',instapay:'InstaPay',wallet:'Wallet'};
+const REF={visa:'Card approval code or last 4 digits (optional)',instapay:'InstaPay reference number (optional)',wallet:'Wallet number or transaction ID (optional)'};
+const DEF={store:'Fazara',social:'Fazara.eg',tax:0,lang:'en',paper:'80',autoPrint:false,nextNo:1};
+
+/* ---------- state ---------- */
+let user=null,profile=null,cfg={...DEF},products={},byCode={},sales=[],shifts=[],moves=[],team=[];
+let cart=[],held=[],shift=null,pay='cash',disc={t:'pct',v:0},cur=null,pk=[],dbInfo=null,editId=null,adjId=null,busy=false;
+let stream=null,loop=null,det=null,last='',lastAt=0,ac,tt,tab='checkout',stockF='all',range=1,cfgFilled=false;
+const unsub=[];
+const K=n=>'fz-'+n+'-'+(user?user.uid:'x');
+const isOwner=()=>profile&&profile.role==='owner';
+
+/* ---------- ui helpers ---------- */
+const msg=t=>$('msg').textContent=t;
+function beep(ok=true){try{ac=ac||new AudioContext();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=ok?1040:280;g.gain.value=.08;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.1)}catch(e){}try{navigator.vibrate&&navigator.vibrate(ok?30:[60,40,60])}catch(e){}}
+function toast(t,act,fn){const e=$('toast');e.innerHTML='<span>'+esc(t)+'</span>'+(act?'<button>'+esc(act)+'</button>':'');if(act)e.querySelector('button').onclick=()=>{fn();e.hidden=true};e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,act?5000:2800)}
+function syncErr(e){console.error(e);toast(e&&e.code==='permission-denied'?'Firestore is blocking access. Publish the rules shown at the top of this file.':'Sync problem: '+(e&&e.code||e&&e.message||'unknown'))}
+function setOnline(){const on=navigator.onLine!==false,s=$('sync');s.textContent=on?'Online':'Offline · will sync later';s.classList.toggle('off',!on)}
+addEventListener('online',setOnline);addEventListener('offline',setOnline);
+
+/* ---------- auth ---------- */
+const AE={'auth/invalid-credential':'Wrong email or password.','auth/wrong-password':'Wrong email or password.','auth/user-not-found':'Wrong email or password.','auth/invalid-email':'That email address isn’t valid.','auth/user-disabled':'This account has been disabled. Ask your manager.','auth/too-many-requests':'Too many attempts. Wait a few minutes, then try again.','auth/network-request-failed':'No internet connection. Connect and try again.','auth/operation-not-allowed':'Email and password sign-in is turned off in Firebase Authentication.','auth/missing-password':'Enter your password.'};
+$('loginForm').onsubmit=async e=>{e.preventDefault();const em=$('lEmail').value.trim(),pw=$('lPass').value;$('lErr').className='err';$('lErr').textContent='';
+  if(!em||!pw){$('lErr').textContent='Enter your email and password.';return}
+  $('lGo').disabled=true;$('lGo').textContent='Signing in…';
+  try{await signInWithEmailAndPassword(auth,em,pw)}catch(x){$('lErr').textContent=AE[x.code]||'Couldn’t sign in ('+(x.code||'error')+').'}
+  $('lGo').disabled=false;$('lGo').textContent='Sign in'};
+$('lForgot').onclick=async()=>{const em=$('lEmail').value.trim();const m=$('lErr');m.className='err';
+  if(!em){m.textContent='Type your email above first, then tap “Forgot password?”.';return}
+  try{await sendPasswordResetEmail(auth,em);m.className='err okm';m.textContent='Reset link sent to '+em+'. Check your inbox.'}catch(x){m.textContent=AE[x.code]||'Couldn’t send the reset email.'}};
+$('out').onclick=()=>{if(cart.length&&!confirm('There is an open receipt on this device. Sign out anyway?'))return;camOff();signOut(auth)};
+
+onAuthStateChanged(auth,async u=>{
+  $('boot').hidden=true;
+  if(!u){stopSync();user=null;profile=null;$('app').hidden=true;$('auth').hidden=false;$('lPass').value='';return}
+  user=u;await loadProfile();
+  cart=ld(K('cart'),[]);held=ld(K('held'),[]);shift=ld(K('shift'),null);
+  document.body.classList.toggle('cashier',!isOwner());
+  if(!isOwner()&&tab==='settings')go('checkout');
+  $('auth').hidden=true;$('app').hidden=false;cfgFilled=false;
+  startSync();setOnline();render();dayChip();renderHeld();
+  if(!shift)startDlg();
+  if(matchMedia('(pointer:fine)').matches)$('code').focus();
+});
+
+async function loadProfile(){
+  const ref=doc(fs,'users',user.uid),cache=K('profile');
+  try{
+    const s=await getDoc(ref);
+    if(s.exists())profile=s.data();
+    else{const any=await getDocs(query(collection(fs,'users'),limit(1)));
+      profile={email:user.email,name:(user.email||'').split('@')[0],role:any.empty?'owner':'cashier',at:Date.now()};
+      await setDoc(ref,profile)}
+    sv(cache,profile);
+  }catch(e){profile=ld(cache,null)||{email:user.email,name:(user.email||'').split('@')[0],role:'cashier'};if(e&&e.code==='permission-denied')syncErr(e)}
+}
+
+/* ---------- live sync ---------- */
+function stopSync(){unsub.splice(0).forEach(f=>{try{f()}catch(e){}});products={};byCode={};sales=[];shifts=[];moves=[];team=[]}
+function startSync(){
+  stopSync();
+  const since=Date.now()-90*864e5;
+  unsub.push(onSnapshot(collection(fs,'products'),s=>{products={};byCode={};s.forEach(d=>{const p={id:d.id,...d.data()};products[d.id]=p;byCode[p.code]=p});onProducts()},syncErr));
+  unsub.push(onSnapshot(query(collection(fs,'sales'),where('at','>=',since),orderBy('at','desc'),limit(3000)),s=>{sales=s.docs.map(d=>({id:d.id,...d.data()}));refreshTab()},syncErr));
+  unsub.push(onSnapshot(query(collection(fs,'shifts'),orderBy('end','desc'),limit(20)),s=>{shifts=s.docs.map(d=>d.data());if(tab==='shift')renderShift()},syncErr));
+  unsub.push(onSnapshot(query(collection(fs,'stockMoves'),orderBy('at','desc'),limit(40)),s=>{moves=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==='stock')renderStock()},syncErr));
+  unsub.push(onSnapshot(doc(fs,'settings','store'),s=>{cfg={...DEF,...(s.data()||{})};render();if(tab==='settings'&&!cfgFilled)renderSettings()},syncErr));
+  if(isOwner())unsub.push(onSnapshot(collection(fs,'users'),s=>{team=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==='settings')renderTeam()},()=>{}));
+}
+function onProducts(){
+  const low=Object.values(products).filter(p=>p.track&&stockState(p)!=='ok').length;
+  $('lowBdg').hidden=!low;$('lowBdg').textContent=low;
+  refreshTab();
+}
+function refreshTab(){({checkout:()=>{},products:renderDB,stock:renderStock,sales:renderSales,shift:renderShift,settings:renderSettings}[tab]||(()=>{}))();dayChip()}
+
+/* ---------- tabs ---------- */
+function go(t){tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id===t));if(t==='settings')cfgFilled=false;refreshTab();scrollTo(0,0)}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>go(b.dataset.t));
+/* a USB scanner types like a keyboard: send keystrokes to the search box */
+document.addEventListener('keydown',e=>{
+  if(tab==='checkout'&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)&&!document.querySelector('dialog[open]')&&e.key.length===1&&!e.ctrlKey&&!e.metaKey)$('code').focus();
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)&&tab==='checkout')done();
+});
+
+/* ---------- stock helpers ---------- */
+function stockState(p){const s=+p.stock||0;return s<=0?'out':(p.min>0&&s<=p.min?'low':'ok')}
+const stockTag=p=>{if(!p.track)return'';const st=stockState(p);return `<span class="tag ${st}">${st==='out'?'Out of stock':st==='low'?'Low · '+rd3(p.stock)+' left':rd3(p.stock)+' on hand'}</span>`};
+function deduct(b,items,sign){const u={};items.forEach(i=>{if(i.pid&&products[i.pid]&&products[i.pid].track)u[i.pid]=(u[i.pid]||0)+(i.u||1)*i.qty});
+  for(const[k,v]of Object.entries(u))if(v>0)b.update(doc(fs,'products',k),{stock:increment(sign*rd3(v))})}
+
+/* ---------- barcode logic ---------- */
+function weighted(c){if(!/^2\d{12}$/.test(c))return null;const p=byCode['PLU:'+c.slice(2,7)];if(!p||p.type!=='weight')return null;const g=+c.slice(7,12);return g>0&&g<=100000?{p,g}:null}
+function localSearch(q){const s=q.toLowerCase();return Object.values(products).filter(p=>(p.name+' '+p.code+' '+(p.cat||'')).toLowerCase().includes(s)).slice(0,8)}
+
+async function camOn(){
+  if(!('BarcodeDetector' in window)){msg('This browser can’t scan with the camera. Use Chrome on Android, a USB scanner, or type the barcode.');return}
+  try{det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code']});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    const v=$('video');v.srcObject=stream;v.style.display='block';$('ph').hidden=true;$('laser').style.display='block';await v.play();
+    $('camOn').disabled=true;$('camOff').disabled=false;msg('Camera on. Hold a barcode inside the view.');
+    loop=setInterval(async()=>{if(!v.videoWidth||$('go').disabled)return;try{const c=await det.detect(v);if(c.length){const code=c[0].rawValue,n=Date.now();if(code!==last||n-lastAt>2500){last=code;lastAt=n;$('code').value=code;find(code,true)}}}catch(e){}},350);
+  }catch(e){msg('Couldn’t open the camera. Allow camera access, use HTTPS or localhost, or type the barcode.')}
+}
+function camOff(){clearInterval(loop);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;const v=$('video');v.srcObject=null;v.style.display='none';$('ph').hidden=false;$('laser').style.display='none';$('camOn').disabled=false;$('camOff').disabled=true;if(user)msg('Camera stopped.')}
+
+/* Open Food Facts lookup */
+async function web(q){
+  q=String(q||'').trim();if(!q)return[];
+  try{
+    let product=null,code=q;
+    if(/^\d{8,14}$/.test(q)){const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(q)+'.json');if(r.ok){const d=await r.json();if(d.status===1&&d.product)product=d.product}}
+    else{const r=await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=5');if(r.ok){const d=await r.json();product=d.products&&d.products[0]}code=product?.code||'Manual search'}
+    if(!product)return[];
+    const nm=(cfg.lang==='ar'&&product.product_name_ar)||product.product_name_en||product.product_name||product.abbreviated_product_name||'Unnamed product';
+    const info={brand:product.brands||'',qty:product.quantity||'',img:product.image_front_small_url||'',cat:(product.categories||'').split(',').slice(-2).join(',').trim()};
+    return[{name:[info.brand,nm,info.qty].filter(Boolean).join(' '),type:'fixed',price:'',web:1,code:product.code||code,info}];
+  }catch(e){return[]}
+}
+const infoHtml=i=>{if(!i)return'';const b=[i.brand,i.qty].filter(Boolean).map(esc).join(' · ');return `<div class="pi">${i.img?`<img src="${esc(i.img)}" alt="">`:''}<div><div>${b}</div><small>${esc(i.cat||'')}</small></div></div>`};
+
+function picks(list,localList,q){
+  pk=list;$('picks').hidden=false;
+  $('picks').innerHTML='<b>Choose a match</b>'+list.map((p,i)=>`<div class="pk" data-i="${i}">${p.info&&p.info.img?`<img class="th" src="${esc(p.info.img)}" alt="">`:'<span class="th"></span>'}<div><b dir="auto">${esc(p.name)}</b><small>${esc(String(p.code).replace('PLU:','PLU '))}${localList?' · '+money(p.price)+(p.type==='weight'?'/kg':'')+(p.track?' · '+rd3(p.stock||0)+' left':''):''}</small></div></div>`).join('')+(localList?`<div class="row"><button class="btn sm" data-online="${esc(q)}">Search online instead</button></div>`:'');
+  msg('Found '+list.length+(list.length===1?' match':' matches')+'. Pick the right one.')}
+$('picks').onclick=async e=>{
+  const o=e.target.closest('[data-online]');
+  if(o){$('picks').hidden=true;msg('Searching online…');const l=await web(o.dataset.online);if(l.length)picks(l,false,'');else{msg('Nothing found online.');showProd(null,'',null,o.dataset.online,false)}return}
+  const d=e.target.closest('.pk');if(!d)return;const p=pk[+d.dataset.i];$('picks').hidden=true;
+  showProd(p,p.code,null,p.web?'':p.code,false)};
+
+async function find(q,scan){
+  q=String(q||'').trim();if(!q){msg('Type or scan a barcode, or search by name.');return}
+  cur=null;$('found').hidden=true;$('picks').hidden=true;
+  let p=byCode[q]||null,g=null;
+  if(!p){const w=weighted(q);if(w){p=w.p;g=w.g}}
+  if(p){showProd(p,p.code,g,q,scan);return}
+  const isBarcode=/^\d{8,14}$/.test(q);
+  if(!isBarcode){const l=localSearch(q);if(l.length){picks(l,true,q);return}}
+  msg('Looking up…');$('go').disabled=true;
+  let list=[];
+  if(navigator.onLine!==false)list=await web(q);
+  $('go').disabled=false;
+  if(list.length>1&&!isBarcode){picks(list,false,'');return}
+  if(list[0]){showProd(list[0],list[0].code||q,null,q,scan);return}
+  showProd(null,q,null,q,scan);
+}
+
+function showProd(p,code,g,q,scan){
+  const known=!!p&&!p.web,price=p?(p.type==='weight'?(g?rd(p.price*g/1000):''):p.price):'';
+  cur={name:p?p.name:(/^\d+$/.test(q)?'Unknown product':q),code,price,grams:g,known,type:p&&p.type,info:p&&p.info,pid:known?p.id:null,cost:known?(+p.cost||0):0,u:p&&p.type==='weight'?(g?g/1000:0):1};
+  if(scan&&known&&$('auto').checked&&price>0){add(cur,1);return}
+  $('fName').value=cur.name;$('fCode').textContent=String(code).replace('PLU:','PLU ')+(g?' · '+g+' g':'')+(cur.type==='weight'&&!g?' · sold by weight':'');
+  $('pinfo').innerHTML=infoHtml(cur.info);$('fStock').innerHTML=known?stockTag(p):'';
+  $('fPrice').value=price===''?'':(+price).toFixed(2);$('fQty').value=1;
+  $('fSave').checked=!known&&cur.type!=='weight'&&/^\d{6,14}$/.test(code);$('saveRow').hidden=known;$('found').hidden=false;
+  msg(known?(price===''?'Weighed item: enter the total price for this pack.':'Found. Check the price and add it.'):p?'Found online. Enter your shop price.':'No match. Enter a name and price.');
+  beep(!!p);$('fPrice').focus();$('fPrice').select();
+}
+
+function add(i,q){
+  const price=rd(i.price),l=cart.find(x=>x.code===i.code&&x.price===price&&x.name===i.name);
+  l?l.qty+=q:cart.push({id:Date.now()+Math.random(),pid:i.pid||null,name:i.name,code:i.code,price,qty:q,u:i.u??1,cost:i.cost||0});
+  cur=null;$('found').hidden=true;$('code').value='';msg('Added '+i.name+'. Ready for the next item.');beep();render();
+  const p=i.pid&&products[i.pid];
+  if(p&&p.track){const inCart=cart.filter(x=>x.pid===i.pid).reduce((a,x)=>a+x.qty*(x.u||1),0);if((+p.stock||0)-inCart<0)toast('Only '+rd3(p.stock||0)+' in stock for '+p.name+'. Selling anyway.')}
+  const r=$('rcpt');r.classList.remove('flash');void r.offsetWidth;r.classList.add('flash');
+  if(matchMedia('(pointer:fine)').matches)$('code').focus();
+}
+function addCard(){
+  const pr=parseFloat($('fPrice').value),q=Math.floor($('fQty').value);
+  if(!(pr>=0)||$('fPrice').value===''||!(q>=1)){toast('Enter a valid price and quantity.');beep(false);return}
+  cur.name=$('fName').value.trim()||cur.name;
+  if($('fSave').checked&&!cur.known){const code=cur.code,id=pidOf(code);
+    setDoc(doc(fs,'products',id),clean({code,name:cur.name,price:pr,cost:0,type:'fixed',track:false,stock:0,min:0,cat:'',info:cur.info||null,updatedAt:Date.now()}),{merge:true}).catch(syncErr);
+    cur.pid=id}
+  add({...cur,price:pr},q);
+}
+
+/* ---------- receipt ---------- */
+const rowH=(a,b,k='')=>`<div class="tr ${k}"><span>${a}</span><span>${b}</span></div>`;
+function tot(){const sub=cart.reduce((s,i)=>s+i.price*i.qty,0),d=disc.t==='pct'?sub*Math.min(disc.v,100)/100:Math.min(disc.v,sub),tax=(sub-d)*(cfg.tax||0)/100;return{sub:rd(sub),d:rd(d),tax:rd(tax),total:rd(sub-d+tax)}}
+const handle=()=>String(cfg.social||'').replace(/^@/,'').trim();
+function rcHtml(s,liveMode){
+  const its=s.items||[],has=its.length>0,cash=s.cash!=null&&s.cash>=0;
+  const lines=its.map(i=>{
+    const sm=i.u&&i.u!==1?rd3(i.u)+' kg':(liveMode?num(i.price)+' each':i.qty+' × '+num(i.price));
+    return `<div class="ri"><div class="rn"><b dir="auto">${esc(i.name)}</b><small>${sm}</small></div>${liveMode?`<div class="q"><button data-id="${i.id}" data-d="-1" aria-label="Fewer">−</button><b>${i.qty}</b><button data-id="${i.id}" data-d="1" aria-label="More">+</button></div>`:''}<div class="ra">${num(i.price*i.qty)}</div></div>`}).join('');
+  const m=s.method||'cash';
+  return `<div class="rc">
+    <div class="rc-h"><span class="mark">${esc((cfg.store||'F').trim().charAt(0).toUpperCase()||'F')}</span><h3 dir="auto">${esc(cfg.store)}</h3><p>${pad(s.no)} · ${fmt(s.at)}</p>${s.cashier?`<p>Cashier: ${esc(s.cashier)}</p>`:''}</div>
+    <div class="rc-i">${has?lines:'<div class="empty">Nothing scanned yet.<br>Scan a barcode or search for an item to start a sale.</div>'}</div>
+    ${has?`<div class="rc-s">${rowH('Subtotal',num(s.sub))}${s.d?rowH('Discount','− '+num(s.d)):''}${s.tax?rowH('Tax '+(cfg.tax||0)+'%',num(s.tax)):''}</div>
+    <div class="rc-t"><span>Total</span><b>${money(s.total)}</b></div>
+    <div class="rc-p">${rowH('Paid by',PM[m])}${m==='cash'&&cash?rowH('Cash received',money(s.cash))+(s.cash>=s.total?rowH('Change',money(rd(s.cash-s.total))):''):''}${s.ref?rowH('Reference',esc(s.ref)):''}</div>`:''}
+    <div class="rc-f"><p>Thank you for shopping at ${esc(cfg.store)}</p>${handle()?`<p class="soc">Follow us on social media<br><b>@${esc(handle())}</b></p>`:''}</div>
+    ${s.void?'<div class="rc-v">VOIDED</div>':''}
+  </div>`;
+}
+function printDoc(h){const p=$('print');p.className='w'+cfg.paper;p.innerHTML=h;setTimeout(()=>window.print(),60)}
+function rText(s){return [cfg.store,pad(s.no)+' · '+fmt(s.at),'',...s.items.map(i=>`${i.name}  ${i.qty} × ${num(i.price)} = ${num(i.price*i.qty)}`),'','Total: '+money(s.total),'Paid by '+PM[s.method||'cash'],'','Thank you for shopping at '+cfg.store+(handle()?'\nFollow us @'+handle():'')].join('\n')}
+async function shareSale(s){const t=rText(s);try{if(navigator.share){await navigator.share({text:t});return}await navigator.clipboard.writeText(t);toast('Receipt copied. Paste it into WhatsApp.')}catch(e){}}
+
+function render(){
+  if(!user)return;
+  const t=tot(),c=parseFloat($('cash').value),has=cart.length>0;
+  $('storeName').textContent=cfg.store;$('mk').textContent=(cfg.store||'F').trim().charAt(0).toUpperCase()||'F';document.title=cfg.store+' — Point of sale';
+  $('cashBox').hidden=pay!=='cash';$('refBox').hidden=pay==='cash';$('refLb').textContent=REF[pay]||'';
+  $('done').textContent='Complete sale · '+PM[pay];$('done').disabled=!has||busy;
+  $('live').innerHTML=rcHtml({no:cfg.nextNo||1,at:Date.now(),cashier:shift&&shift.cashier,items:cart,...t,method:pay,cash:pay==='cash'&&c>=0?c:null,ref:''},true);
+  const ch=$('chg');ch.className='chg';ch.textContent='';
+  if(has&&pay==='cash'&&c>=0){if(c>=t.total){ch.textContent='Change due '+money(rd(c-t.total));ch.classList.add('ok')}else{ch.textContent='Short by '+money(rd(t.total-c));ch.classList.add('bad')}}
+  const q=$('quick');q.innerHTML='';
+  if(has&&pay==='cash')[['Exact',t.total],...[50,100,200,500].map(n=>[n,n])].forEach(([l,v])=>{const b=document.createElement('button');b.className='btn';b.textContent=l;b.onclick=()=>{$('cash').value=v;render()};q.append(b)});
+  sv(K('cart'),cart);
+}
+$('live').onclick=e=>{const b=e.target.closest('button[data-id]');if(!b)return;const i=cart.find(x=>String(x.id)===b.dataset.id);if(!i)return;i.qty+=+b.dataset.d;
+  if(i.qty<1){const idx=cart.indexOf(i);cart.splice(idx,1);toast('Removed '+i.name,'Undo',()=>{cart.splice(idx,0,i);i.qty=1;render()})}render()};
+function setPay(m){pay=m;[...$('pm').children].forEach(x=>x.classList.toggle('on',x.dataset.m===m))}
+
+/* ---------- complete sale ---------- */
+async function claimNo(){
+  const ref=doc(fs,'settings','store');
+  if(navigator.onLine!==false){
+    try{return await Promise.race([runTransaction(fs,async tx=>{const s=await tx.get(ref);const n=(s.exists()&&s.data().nextNo)||1;tx.set(ref,{nextNo:n+1},{merge:true});return n}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('slow')),3500))])}catch(e){}
+  }
+  const n=cfg.nextNo||1;setDoc(ref,{nextNo:increment(1)},{merge:true}).catch(()=>{});return n;
+}
+async function done(){
+  if(!cart.length||busy)return;if(!shift){startDlg();return}
+  const t=tot(),c=parseFloat($('cash').value);
+  if(pay==='cash'&&c>=0&&c<t.total){toast('Cash received is less than the total.');beep(false);return}
+  busy=true;$('done').disabled=true;
+  const no=await claimNo();
+  const items=cart.map(i=>({name:i.name,code:i.code,pid:i.pid||null,price:i.price,qty:i.qty,u:i.u??1,cost:i.cost||0}));
+  const sale=clean({no,at:Date.now(),shift:shift.id,cashier:shift.cashier,uid:user.uid,method:pay,ref:pay==='cash'?'':$('ref').value.trim(),items,...t,cash:pay==='cash'&&c>=0?c:null,void:false});
+  const b=writeBatch(fs);b.set(doc(fs,'sales',newId()),sale);deduct(b,items,-1);b.commit().catch(syncErr);
+  toast('Sale '+pad(no)+' complete · '+PM[pay]+' · '+money(t.total));
+  cart=[];disc={t:'pct',v:0};$('dv').value=0;$('dt').value='pct';$('cash').value='';$('ref').value='';setPay('cash');busy=false;beep();render();dayChip();
+  if(cfg.autoPrint)printDoc(rcHtml(sale,false));
+}
+function hold(){if(!cart.length)return;held.push({id:Date.now(),at:Date.now(),cart,disc});sv(K('held'),held);cart=[];disc={t:'pct',v:0};$('dv').value=0;$('cash').value='';render();renderHeld();toast('Sale held. Resume it from the list under the scanner.')}
+function renderHeld(){const b=$('heldBox');b.hidden=!held.length;b.innerHTML=held.length?'<b>Held sales</b>'+held.map(h=>`<div class="row"><span>${fmtTime(h.at)} · ${h.cart.reduce((a,i)=>a+i.qty,0)} items · ${money(h.cart.reduce((a,i)=>a+i.price*i.qty,0))}</span><button class="lnk" data-r="${h.id}">Resume</button><button class="lnk r" data-d="${h.id}">Delete</button></div>`).join(''):''}
+$('heldBox').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.r){if(cart.length){toast('Hold or finish the current sale first.');return}const h=held.find(x=>String(x.id)===b.dataset.r);cart=h.cart;disc=h.disc;$('dv').value=disc.v;$('dt').value=disc.t}
+  held=held.filter(x=>String(x.id)!==(b.dataset.r||b.dataset.d));sv(K('held'),held);render();renderHeld()};
+
+/* ---------- shift ---------- */
+const shTotals=id=>{const T={n:0,total:0,disc:0,voids:0,by:{cash:{n:0,t:0},visa:{n:0,t:0},instapay:{n:0,t:0},wallet:{n:0,t:0}}};sales.filter(x=>x.shift===id).forEach(x=>{if(x.void){T.voids++;return}T.n++;T.total+=x.total;T.disc+=x.d||0;if(T.by[x.method]){T.by[x.method].n++;T.by[x.method].t+=x.total}});T.total=rd(T.total);return T};
+const moved=()=>sum(shift.moves||[],m=>m.amt),expCash=()=>rd(shift.float+shTotals(shift.id).by.cash.t+moved());
+function dayChip(){const T=shift&&shTotals(shift.id);$('chip').textContent=shift?shift.cashier+' · '+T.n+' sale'+(T.n===1?'':'s')+' · '+money(T.total):'No shift open'}
+function startDlg(){$('shName').value=(shift&&shift.cashier)||(profile&&profile.name)||'';$('shFloat').value=ld(K('float'),'');if(!$('dlg').open)$('dlg').showModal()}
+function updVar(){const v=$('var'),c=parseFloat($('count').value);v.className='chg';v.textContent='';if(!shift||!(c>=0))return;const d=rd(c-expCash());v.textContent=d===0?'Drawer is balanced':(d>0?'Over by ':'Short by ')+money(Math.abs(d));v.classList.add(d===0?'ok':'bad')}
+function zHtml(r){const m=Object.keys(PM).map(k=>rowH(PM[k]+' ('+r.T.by[k].n+')',money(r.T.by[k].t))).join('');
+  return `<div class="rc rz"><div class="rc-h"><span class="mark">${esc((cfg.store||'F').charAt(0).toUpperCase())}</span><h3 dir="auto">${esc(cfg.store)}</h3><p>Shift report</p></div>${rowH('Cashier',esc(r.cashier))}${rowH('Opened',fmt(r.start))}${rowH('Closed',fmt(r.end))}<hr>${m}${rowH('Total sales ('+r.T.n+')',money(r.T.total),'g')}${rowH('Discounts given',money(r.T.disc))}${rowH('Voided receipts',r.T.voids)}<hr>${rowH('Opening cash',money(r.float))}${r.mv?rowH('Cash in/out',money(r.mv)):''}${rowH('Expected cash',money(r.expected))}${rowH('Counted cash',money(r.counted))}${rowH('Difference',(r.diff>0?'+':'')+money(r.diff),'g')}</div>`}
+function renderShift(){
+  $('psl').innerHTML=shifts.length?shifts.slice(0,10).map(r=>`<div class="ln"><div class="nm">${esc(r.cashier)}<small>${fmt(r.start)} · ${money(r.T.total)} · ${r.diff===0?'balanced':(r.diff>0?'over ':'short ')+money(Math.abs(r.diff))}</small></div><span></span><div><button class="lnk" data-z="${r.id}">Reprint</button></div></div>`).join(''):'<div class="empty">Closed shifts appear here.</div>';
+  if(!shift){$('shInfo').innerHTML='<div class="empty">No shift is open.</div><div class="row"><button class="btn p big" id="shOpen">Start shift</button></div>';$('shTot').innerHTML='';$('shOpen').onclick=startDlg;return}
+  const T=shTotals(shift.id);
+  $('shInfo').innerHTML=rowH('Cashier','<b>'+esc(shift.cashier)+'</b>')+rowH('Started',fmt(shift.start))+rowH('Opening cash',money(shift.float));
+  $('shTot').innerHTML=Object.keys(PM).map(k=>rowH(PM[k]+' ('+T.by[k].n+')',money(T.by[k].t))).join('')+rowH('Total sales ('+T.n+')',money(T.total),'g')+(moved()?rowH('Cash in/out',money(moved())):'')+rowH('Expected cash in drawer','<b>'+money(expCash())+'</b>');updVar()}
+function endShift(){
+  if(!shift){startDlg();return}
+  const cnt=parseFloat($('count').value);if(!(cnt>=0)){toast('Count the cash in the drawer and enter the amount first.');$('count').focus();return}
+  if(cart.length&&!confirm('There is an open receipt. End the shift anyway?'))return;
+  const exp=expCash(),r=clean({...shift,end:Date.now(),counted:cnt,expected:exp,diff:rd(cnt-exp),mv:moved(),T:shTotals(shift.id)});
+  setDoc(doc(fs,'shifts',String(r.id)),r).catch(syncErr);
+  shift=null;sv(K('shift'),null);$('count').value='';dayChip();renderShift();printDoc(zHtml(r));startDlg()}
+$('shGo').onclick=()=>{const n=$('shName').value.trim(),f=parseFloat($('shFloat').value);if(!n||!(f>=0)){toast('Enter the cashier name and the opening cash amount.');return}
+  shift={id:Date.now(),cashier:n,float:f,start:Date.now(),moves:[]};sv(K('float'),f);sv(K('shift'),shift);$('dlg').close();render();dayChip();renderShift();toast('Shift started: '+n)};
+$('endShift').onclick=endShift;$('count').oninput=updVar;
+$('mv').onclick=()=>{if(!shift)return;const a=parseFloat(prompt('Cash added (+) or taken out (−) of the drawer, in EGP. Example: -50'));if(!a)return;shift.moves=shift.moves||[];shift.moves.push({amt:a,why:prompt('Reason (for example: supplier payment)')||'',at:Date.now()});sv(K('shift'),shift);renderShift()};
+$('psl').onclick=e=>{const b=e.target.closest('button');const r=b&&shifts.find(x=>String(x.id)===b.dataset.z);if(r)printDoc(zHtml(r))};
+
+/* ---------- products ---------- */
+function resetForm(){editId=null;dbInfo=null;['dbCode','dbName','dbPrice','dbCost','dbCat','dbStock','dbMin'].forEach(i=>$(i).value='');$('dbType').value='fixed';$('dbTrack').checked=true;$('dbStock').disabled=false;$('pfT').textContent='Add a product';$('spX').hidden=true;$('dbCode').disabled=false;$('dbType').onchange();$('dbTrack').onchange()}
+$('dbType').onchange=()=>$('wh').textContent=$('dbType').value==='weight'?'Price per kg. Use the 5-digit item code from your scale labels, and ScanTill reads the weight (in grams) from the rest of the label. Stock is counted in kg. Example: 100 EGP/kg × 578 g = 57.80 EGP.':'Price for one item.';
+$('dbTrack').onchange=()=>{$('stockF').hidden=!$('dbTrack').checked;$('stockHint').textContent=editId&&$('dbTrack').checked?'To change the amount on hand, use the Stock tab so the change is recorded.':''};
+function renderDB(){
+  const q=$('dq').value.toLowerCase(),es=Object.values(products).filter(p=>(p.code+' '+p.name+' '+(p.cat||'')).toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+  $('dbn').textContent='('+Object.keys(products).length+')';
+  $('dbl').innerHTML=es.length?es.map(p=>`<div class="ln"><div class="nm" dir="auto">${p.info&&p.info.img?`<img class="th" loading="lazy" alt="" src="${esc(p.info.img)}" style="float:left;margin-right:10px">`:''}${esc(p.name)}<small>${esc(String(p.code).replace('PLU:','PLU '))}${p.cat?' · '+esc(p.cat):''}${p.info&&p.info.brand?' · '+esc(p.info.brand):''}${p.track?' · '+rd3(p.stock||0)+(p.type==='weight'?' kg':'')+' on hand':''}</small></div><div class="amt">${money(p.price)}${p.type==='weight'?'/kg':''}</div><div><button class="lnk" data-e="${esc(p.id)}">Edit</button><button class="lnk r own" data-x="${esc(p.id)}">Delete</button></div></div>`).join(''):'<div class="empty">No products yet. Save one with its barcode and price.</div>'}
+$('dbl').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.e!==undefined){const p=products[b.dataset.e];if(!p)return;editId=p.id;$('pfT').textContent='Edit product';$('spX').hidden=false;
+    $('dbCode').value=String(p.code).replace('PLU:','');$('dbName').value=p.name;$('dbType').value=p.type||'fixed';$('dbPrice').value=p.price;$('dbCost').value=p.cost||'';$('dbCat').value=p.cat||'';$('dbTrack').checked=!!p.track;$('dbStock').value=p.track?rd3(p.stock||0):'';$('dbStock').disabled=true;$('dbMin').value=p.min||'';dbInfo=p.info||null;$('dbType').onchange();$('dbTrack').onchange();scrollTo(0,0);$('dbName').focus()}
+  if(b.dataset.x!==undefined){const p=products[b.dataset.x];deleteDoc(doc(fs,'products',p.id)).catch(syncErr);const{id,...data}=p;toast('Deleted '+p.name,'Undo',()=>setDoc(doc(fs,'products',id),clean(data)).catch(syncErr))}};
+$('spX').onclick=resetForm;
+$('sp').onclick=()=>{
+  const code=$('dbCode').value.trim(),name=$('dbName').value.trim(),price=parseFloat($('dbPrice').value),type=$('dbType').value;
+  if(!code||!name||!(price>=0)){toast('Enter a barcode, a name and a valid price.');return}
+  const key=type==='weight'&&/^\d{5}$/.test(code)?'PLU:'+code:code,id=editId||pidOf(key),track=$('dbTrack').checked;
+  const old=products[id];
+  const data={code:editId&&old?old.code:key,name,price,cost:parseFloat($('dbCost').value)||0,type,track,min:parseFloat($('dbMin').value)||0,cat:$('dbCat').value.trim(),info:dbInfo||(old&&old.info)||null,updatedAt:Date.now()};
+  if(!old)data.stock=track?(parseFloat($('dbStock').value)||0):0;
+  if(!isOwner()&&old)data.cost=old.cost||0;
+  setDoc(doc(fs,'products',id),clean(data),{merge:true}).then(()=>{},syncErr);
+  toast('Saved '+name);resetForm();
+};
+$('dq').oninput=renderDB;
+$('dbFind').onclick=async()=>{const c=$('dbCode').value.trim();if(!/^\d{8,14}$/.test(c)){toast('Enter a barcode of 8 to 14 digits first.');return}$('dbFind').disabled=true;const l=await web(c);$('dbFind').disabled=false;if(l[0]){$('dbName').value=l[0].name;dbInfo=l[0].info;toast('Found online. Add your price and save.');$('dbPrice').focus()}else toast('Not found online. Enter the details by hand.')};
+$('fill').onclick=async()=>{const ks=Object.values(products).filter(p=>/^\d{8,14}$/.test(p.code)&&!(p.info&&(p.info.img||p.info.brand)));if(!ks.length){toast('Every product already has its details.');return}let n=0;$('fill').disabled=true;
+  for(let i=0;i<ks.length;i++){$('fill').textContent='Filling '+(i+1)+'/'+ks.length+'…';const l=await web(ks[i].code);if(l[0]){updateDoc(doc(fs,'products',ks[i].id),clean({info:l[0].info})).catch(()=>{});n++}}
+  $('fill').disabled=false;$('fill').textContent='Fill details';toast('Added details to '+n+' of '+ks.length+' products')};
+$('ex').onclick=()=>{const o={};Object.values(products).forEach(p=>{const{id,...d}=p;o[p.code]=d});dl('fazara-products.json',JSON.stringify(o,null,1),'application/json')};
+async function importProducts(o){
+  let n=0,b=writeBatch(fs),c=0;const jobs=[];
+  for(const[k,p]of Object.entries(o)){if(!(p&&p.name&&p.price>=0))continue;
+    b.set(doc(fs,'products',pidOf(k)),clean({code:k,name:String(p.name),price:+p.price,cost:+p.cost||0,type:p.type==='weight'?'weight':'fixed',track:!!p.track,stock:+p.stock||0,min:+p.min||0,cat:p.cat||'',info:p.info&&typeof p.info==='object'?p.info:null,updatedAt:Date.now()}),{merge:true});n++;
+    if(++c===400){jobs.push(b.commit());b=writeBatch(fs);c=0}}
+  if(c)jobs.push(b.commit());
+  await Promise.all(jobs);return n}
+$('im').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(async t=>{try{const o=JSON.parse(t);if(!o||typeof o!=='object'||Array.isArray(o))throw 0;toast('Imported '+await importProducts(o)+' products')}catch(x){toast('That file isn’t a product list.')}});e.target.value=''};
+
+/* ---------- stock ---------- */
+$('stF').onclick=e=>{const b=e.target.closest('button');if(!b)return;stockF=b.dataset.f;[...$('stF').children].forEach(x=>x.classList.toggle('on',x===b));renderStock()};
+$('stq').oninput=renderStock;
+function renderStock(){
+  const all=Object.values(products),tr=all.filter(p=>p.track);
+  const out=tr.filter(p=>stockState(p)==='out').length,low=tr.filter(p=>stockState(p)==='low').length;
+  const cost=sum(tr,p=>Math.max(0,+p.stock||0)*(+p.cost||0)),retail=sum(tr,p=>Math.max(0,+p.stock||0)*(+p.price||0));
+  $('stK').innerHTML=`<div class="kpi"><small>Tracked products</small><b>${tr.length}</b></div><div class="kpi"><small>Low on stock</small><b>${low}</b></div><div class="kpi"><small>Out of stock</small><b>${out}</b></div><div class="kpi own"><small>Stock value at cost</small><b>${money(cost)}</b></div><div class="kpi own"><small>Stock value at selling price</small><b>${money(retail)}</b></div>`;
+  const q=$('stq').value.toLowerCase();
+  const rows=all.filter(p=>(p.name+' '+p.code).toLowerCase().includes(q)).filter(p=>stockF==='all'||(stockF==='none'?!p.track:p.track&&(stockF==='low'?stockState(p)==='low':stockState(p)==='out'))).sort((a,b)=>{const r={out:0,low:1,ok:2};return (a.track?r[stockState(a)]:3)-(b.track?r[stockState(b)]:3)||a.name.localeCompare(b.name)});
+  $('stl').innerHTML=rows.length?rows.map(p=>{const st=p.track?stockState(p):'';return `<div class="ln"><div class="nm" dir="auto">${esc(p.name)}<small>${esc(String(p.code).replace('PLU:','PLU '))}${p.min>0?' · warn at '+p.min:''}</small></div><div class="oh ${st}"><b>${p.track?rd3(p.stock||0):'—'}</b><small>${p.track?(p.type==='weight'?'kg on hand':'on hand'):'not tracked'}</small></div><div><button class="lnk" data-a="${esc(p.id)}" data-m="add">Add</button><button class="lnk" data-a="${esc(p.id)}" data-m="set">${p.track?'Count':'Track'}</button></div></div>`}).join(''):'<div class="empty">'+(all.length?'Nothing matches this filter.':'Add products first, then track their stock here.')+'</div>';
+  $('stm').innerHTML=moves.length?moves.map(m=>`<div class="ln"><div class="nm" dir="auto">${esc(m.name)}<small>${esc(m.reason)}${m.note?' · '+esc(m.note):''} · ${esc(m.by||'')} · ${fmt(m.at)}</small></div><div class="amt" style="color:${m.delta<0?'var(--red)':'var(--brand)'}">${m.delta>0?'+':''}${rd3(m.delta)}</div><span></span></div>`).join(''):'<div class="empty">Deliveries, counts and corrections you record show up here.</div>';
+}
+$('stl').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;openAdj(b.dataset.a,b.dataset.m)};
+function adjLabel(){const m=$('adjM').value;$('adjQL').textContent=m==='add'?'Quantity to add':m==='remove'?'Quantity to remove':'Counted on the shelf';$('adjCB').hidden=m!=='add'}
+$('adjM').onchange=adjLabel;
+function openAdj(id,mode){const p=products[id];if(!p)return;adjId=id;$('adjT').textContent=p.name;$('adjS').textContent=p.track?'On hand now: '+rd3(p.stock||0)+(p.type==='weight'?' kg':''):'Not tracked yet. Saving starts tracking this product.';
+  $('adjM').value=mode||'add';$('adjQ').value='';$('adjC').value='';$('adjN').value='';adjLabel();$('adj').showModal();$('adjQ').focus()}
+$('adjX').onclick=()=>$('adj').close();
+$('adjGo').onclick=()=>{
+  const p=products[adjId],m=$('adjM').value,q=parseFloat($('adjQ').value);
+  if(!p||!(q>=0)||$('adjQ').value===''){toast('Enter a quantity.');return}
+  const curQ=p.track?(+p.stock||0):0;
+  const delta=rd3(m==='set'?q-curQ:m==='remove'?-q:q);
+  const upd={track:true,updatedAt:Date.now(),stock:m==='set'?q:increment(delta)};
+  const cst=parseFloat($('adjC').value);if(m==='add'&&cst>=0&&isOwner())upd.cost=cst;
+  const b=writeBatch(fs);b.update(doc(fs,'products',p.id),upd);
+  b.set(doc(fs,'stockMoves',newId()),clean({pid:p.id,name:p.name,delta,reason:m==='set'?'Stock count':m==='add'?'Stock added':'Stock removed',note:$('adjN').value.trim(),by:profile.name,at:Date.now()}));
+  b.commit().catch(syncErr);$('adj').close();toast(p.name+': '+(delta>0?'+':'')+delta+' recorded');
+};
+$('stCsv').onclick=()=>{const q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl('fazara-stock.csv','\ufeffBarcode,Name,Category,Tracked,On hand,Warn at,Cost,Price\n'+Object.values(products).map(p=>[q(p.code),q(p.name),q(p.cat||''),p.track?'yes':'no',p.track?rd3(p.stock||0):'',p.min||'',p.cost||'',p.price].join(',')).join('\n'),'text/csv')};
+
+/* ---------- sales ---------- */
+const startOf=d=>{const x=new Date();x.setHours(0,0,0,0);x.setDate(x.getDate()-(d-1));return x.getTime()};
+const profitOf=s=>{const f=s.sub?(s.sub-(s.d||0))/s.sub:1;return s.items.reduce((a,i)=>a+(i.cost>0?(i.price-i.cost*(i.u||1))*i.qty:0),0)*f};
+$('rg').onclick=e=>{const b=e.target.closest('button');if(!b)return;range=+b.dataset.r;[...$('rg').children].forEach(x=>x.classList.toggle('on',x===b));renderSales()};
+$('sq').oninput=renderSales;
+function chartHtml(L){
+  let vals,labs;
+  if(range===1){vals=Array(24).fill(0);L.forEach(s=>vals[new Date(s.at).getHours()]+=s.total);labs=vals.map((_,h)=>h%3===0?String(h):'')}
+  else{vals=[];labs=[];const m={};L.forEach(s=>{const k=new Date(s.at).toDateString();m[k]=(m[k]||0)+s.total});
+    for(let i=range-1;i>=0;i--){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-i);vals.push(m[d.toDateString()]||0);labs.push(range<=7?d.toLocaleDateString('en-GB',{weekday:'short'}):(i%Math.ceil(range/6)===0?String(d.getDate()):''))}}
+  const mx=Math.max(1,...vals);
+  return `<div class="bars" role="img" aria-label="Revenue chart">${vals.map((v,i)=>`<div class="bar" title="${esc(labs[i]||'')} ${money(v)}"><div class="col"><i style="height:${v?Math.max(2,v/mx*100):0}%"></i></div><span>${labs[i]}</span></div>`).join('')}</div>`}
+function renderSales(){
+  const all=sales.filter(s=>s.at>=startOf(range)),L=all.filter(live);
+  const rev=sum(L,s=>s.total),n=L.length,items=sum(L,s=>s.items.reduce((a,i)=>a+i.qty,0)),dsc=sum(L,s=>s.d||0),gp=rd(L.reduce((a,s)=>a+profitOf(s),0)),hasCost=L.some(s=>s.items.some(i=>i.cost>0));
+  $('slK').innerHTML=`<div class="kpi"><small>Revenue</small><b>${money(rev)}</b></div><div class="kpi"><small>Sales</small><b>${n}</b></div><div class="kpi"><small>Average sale</small><b>${money(n?rev/n:0)}</b></div><div class="kpi"><small>Items sold</small><b>${rd3(items)}</b></div>${hasCost?`<div class="kpi own"><small>Profit (items with a cost)</small><b>${money(gp)}</b></div>`:''}<div class="kpi"><small>Discounts given</small><b>${money(dsc)}</b></div>`;
+  $('chT').textContent=range===1?'Revenue by hour':'Revenue by day';$('chart').innerHTML=chartHtml(L);
+  const by={};L.forEach(s=>{const k=s.method||'cash';by[k]=(by[k]||0)+s.total});const mx=Math.max(1,...Object.values(by));
+  $('slM').innerHTML=n?Object.keys(PM).map(k=>`<div class="mrow"><span>${PM[k]}</span><span class="tk"><i style="width:${(by[k]||0)/mx*100}%"></i></span><b>${money(by[k]||0)}</b></div>`).join(''):'<div class="empty">No sales in this period.</div>';
+  const tp={};L.forEach(s=>s.items.forEach(i=>{const t=tp[i.name]||(tp[i.name]={q:0,r:0});t.q+=i.qty;t.r+=i.price*i.qty}));
+  const top=Object.entries(tp).sort((a,b)=>b[1].r-a[1].r).slice(0,5);
+  $('slT').innerHTML=top.length?top.map(([k,v])=>`<div class="mrow" style="grid-template-columns:1fr auto auto"><span dir="auto">${esc(k)}</span><small style="color:var(--mute)">${rd3(v.q)} sold</small><b>${money(v.r)}</b></div>`).join(''):'<div class="empty">No sales in this period.</div>';
+  $('sum').textContent=all.length?'('+L.length+' sales · '+money(rev)+')':'';
+  const q=($('sq').value||'').toLowerCase(),rows=all.filter(s=>!q||(pad(s.no)+' '+(s.cashier||'')+' '+s.items.map(i=>i.name).join(' ')).toLowerCase().includes(q)).slice(0,200);
+  $('sl').innerHTML=rows.length?rows.map(s=>`<div class="ln${s.void?' vd':''}"><div class="nm">${pad(s.no)}${s.void?' (voided)':''}<small>${range===1?fmtTime(s.at):fmt(s.at)} · ${rd3(s.items.reduce((a,i)=>a+i.qty,0))} items · ${PM[s.method||'cash']}${s.cashier?' · '+esc(s.cashier):''}${s.ref?' · '+esc(s.ref):''}</small></div><div class="amt">${money(s.total)}</div><div><button class="lnk" data-p="${s.id}">Reprint</button><button class="lnk" data-s="${s.id}">Share</button>${s.void?'':`<button class="lnk r own" data-v="${s.id}">Void</button>`}</div></div>`).join(''):'<div class="empty">No receipts found for this period.</div>';
+}
+$('sl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const s=sales.find(x=>x.id===(b.dataset.p||b.dataset.s||b.dataset.v));if(!s)return;
+  if(b.dataset.p)printDoc(rcHtml(s,false));
+  else if(b.dataset.s)shareSale(s);
+  else if(confirm('Void receipt '+pad(s.no)+'? It will be removed from the totals and the stock will be returned.')){const bt=writeBatch(fs);bt.update(doc(fs,'sales',s.id),{void:true,voidAt:Date.now(),voidBy:profile.name});deduct(bt,s.items,+1);bt.commit().catch(syncErr);toast('Receipt '+pad(s.no)+' voided')}};
+$('csv').onclick=()=>{const q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl('fazara-sales.csv','\ufeffReceipt,Date,Items,Subtotal,Discount,Tax,Total,Method,Cashier,Status\n'+sales.filter(s=>s.at>=startOf(range)).map(s=>[pad(s.no),new Date(s.at).toISOString(),q(s.items.map(i=>i.qty+'x '+i.name).join('; ')),s.sub,s.d,s.tax,s.total,s.method||'cash',q(s.cashier||''),s.void?'void':''].join(',')).join('\n'),'text/csv')};
+
+/* ---------- settings ---------- */
+let svT;
+function saveCfg(){clearTimeout(svT);svT=setTimeout(()=>setDoc(doc(fs,'settings','store'),{store:cfg.store,social:cfg.social,tax:cfg.tax,lang:cfg.lang,paper:cfg.paper,autoPrint:!!cfg.autoPrint},{merge:true}).catch(syncErr),500)}
+function renderSettings(){
+  if(!cfgFilled){cfgFilled=true;$('sName').value=cfg.store;$('sSocial').value=cfg.social;$('sTax').value=cfg.tax;$('sPaper').value=cfg.paper;$('sLang').value=cfg.lang;$('sAuto').checked=!!cfg.autoPrint}
+  const legacy=Object.keys(ld('scantill-products-v1',{})).length;$('mig').hidden=!legacy;$('migH').textContent=legacy?legacy+' products from the old ScanTill page are saved in this browser.':'';
+  renderTeam();
+}
+const bind=(id,fn)=>$(id).addEventListener('input',()=>{fn($(id));render();saveCfg()});
+bind('sName',e=>cfg.store=e.value.trim()||'Fazara');bind('sSocial',e=>cfg.social=e.value.trim());bind('sTax',e=>cfg.tax=Math.max(0,parseFloat(e.value)||0));bind('sPaper',e=>cfg.paper=e.value);bind('sLang',e=>cfg.lang=e.value);
+$('sAuto').onchange=()=>{cfg.autoPrint=$('sAuto').checked;saveCfg()};
+$('mig').onclick=async()=>{const o=ld('scantill-products-v1',{});$('mig').disabled=true;try{toast('Uploaded '+await importProducts(o)+' products')}catch(e){syncErr(e)}$('mig').disabled=false};
+function renderTeam(){
+  if(!isOwner())return;
+  $('team').innerHTML=team.length?team.map(u=>`<div class="ln" style="grid-template-columns:minmax(0,1fr) 120px"><div class="nm"><input class="w100" data-n="${u.id}" value="${esc(u.name||'')}" aria-label="Name"><small>${esc(u.email||'')}</small></div><select data-u="${u.id}" ${u.id===user.uid?'disabled title="You can’t change your own role"':''}><option value="owner"${u.role==='owner'?' selected':''}>Owner</option><option value="cashier"${u.role!=='owner'?' selected':''}>Cashier</option></select></div>`).join(''):'<div class="empty">No team members yet.</div>'}
+$('team').onchange=e=>{const t=e.target;if(t.dataset.u)updateDoc(doc(fs,'users',t.dataset.u),{role:t.value}).then(()=>toast('Role updated'),syncErr);if(t.dataset.n)updateDoc(doc(fs,'users',t.dataset.n),{name:t.value.trim()}).catch(syncErr)};
+
+/* ---------- wiring ---------- */
+$('camOn').onclick=camOn;$('camOff').onclick=camOff;$('go').onclick=()=>find($('code').value);
+$('code').onkeydown=e=>{if(e.key==='Enter')find($('code').value)};
+$('addBtn').onclick=addCard;$('cancelBtn').onclick=()=>{cur=null;$('found').hidden=true;msg('Cancelled.');$('code').focus()};
+['fPrice','fQty'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')addCard()});
+$('dt').onchange=()=>{disc.t=$('dt').value;render()};$('dv').oninput=()=>{disc.v=Math.max(0,parseFloat($('dv').value)||0);render()};$('cash').oninput=render;
+$('done').onclick=done;$('hold').onclick=hold;
+$('prt').onclick=()=>{if(!cart.length){toast('Add an item first.');return}const c=parseFloat($('cash').value);printDoc(rcHtml({no:cfg.nextNo||1,at:Date.now(),cashier:shift&&shift.cashier,items:cart,...tot(),method:pay,cash:pay==='cash'&&c>=0?c:null,ref:pay==='cash'?'':$('ref').value.trim()},false))};
+$('clr').onclick=()=>{if(cart.length&&confirm('Clear this receipt?')){cart=[];render()}};
+$('pm').onclick=e=>{const b=e.target.closest('button');if(b){setPay(b.dataset.m);render();if(b.dataset.m==='cash')$('cash').focus();else $('ref').focus()}};
+resetForm();
+</script>
+</body>
+</html>
