@@ -18,6 +18,9 @@
 
   Create staff accounts in Firebase console → Authentication → Users → Add user.
   The first account that signs in becomes the Owner. Owners can change roles in Settings.
+
+  RETURNS: refunds are stored in a new 'returns' collection and each sale gets rq / rtotal / rstat fields when something is returned.
+  The 'returns' collection is covered by the same rule above.
 -->
 <style>
 :root{--bg:#f2f5f4;--card:#fff;--ink:#10201e;--mute:#62736f;--brand:#0b6b5f;--brand-d:#08524a;--tint:#e2f1ee;--amber:#f0a81c;--amber-t:#fdf3dc;--red:#c8322b;--red-t:#fdeceb;--line:#e1e7e5;--r:14px}
@@ -152,6 +155,23 @@ video{width:100%;height:250px;object-fit:cover;display:none}
 .mrow{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:5px 0;font-size:14px}.mrow .tk{height:8px;background:#e9efee;border-radius:99px;overflow:hidden}.mrow .tk i{display:block;height:100%;background:var(--brand)}
 .two-c{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-c .card+.card{margin-top:0}
 
+/* returns + receipt barcode */
+.bc{display:block;width:100%;height:3.4em}
+.rc-bc{margin-top:1em;text-align:center}.rc-bc .bn{font-weight:800;letter-spacing:.14em;font-size:.95em;margin-top:.4em}.rc-bc .bm{font-size:.82em;margin-top:.2em}.rc-bc .bt{font-size:.78em;margin-top:.5em;line-height:1.35}
+.tag.mute{background:#eef3f2;color:var(--mute)}.tag.no{background:var(--red-t);color:var(--red)}
+.bnr{border-radius:12px;padding:12px 14px;margin:12px 0 0;font-weight:600;background:var(--tint);color:var(--brand-d);border:1px solid #bfe0da}
+.bnr.bad{background:var(--red-t);color:var(--red);border-color:#f4c4c1}.bnr.warn{background:var(--amber-t);color:#6e4700;border-color:#f1d79a}
+.bnr b{display:block}.bnr small{display:block;font-weight:400;margin-top:2px;font-size:13px}
+.rth{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}.rth h2{margin:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 16px;margin:14px 0 4px}.kv small{display:block;color:var(--mute);font-size:12px}.kv b{font-weight:600}
+.rti{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.rti:last-child{border-bottom:0}.rti.dim{opacity:.6}
+.rti .nm{overflow-wrap:anywhere;font-weight:600}.rti small{display:block;font-weight:400;color:var(--mute);font-size:12px}.rti select{padding:8px;font-size:14px;max-width:175px}
+.rsum{margin-top:12px;border-top:2px solid var(--ink);padding-top:10px}.rsum .tr{padding:3px 0}.rsum .tr.g{font-weight:800;font-size:19px}
+.refund{color:var(--red)}#rtPanel{scroll-margin-top:84px}.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:250px}
+dialog.wide{width:min(460px,94vw);max-height:92vh;overflow:auto}dialog .receipt{box-shadow:0 4px 16px #10201e14}
+@media(max-width:560px){.rti{grid-template-columns:minmax(0,1fr) auto}.rti select{grid-column:1/-1;max-width:none}}
+
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:12px;display:flex;gap:14px;align-items:center;max-width:92vw;z-index:50;box-shadow:0 10px 30px #0005}
 #toast button{background:none;border:0;color:#7fe6d6;font-weight:700;cursor:pointer}
 dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow:0 20px 60px #0006}dialog::backdrop{background:#10201ecc}dialog h2{margin:0 0 4px}
@@ -193,6 +213,7 @@ dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow
     <button data-t="products">Products</button>
     <button data-t="stock">Stock<span class="bdg" id="lowBdg" hidden></span></button>
     <button data-t="sales">Sales</button>
+    <button data-t="returns">Returns</button>
     <button data-t="shift">Shift</button>
     <button data-t="settings" class="own">Settings</button>
   </nav>
@@ -267,14 +288,31 @@ dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow
   <div class="kpis" id="slK"></div>
   <div class="card"><h2 id="chT">Sales</h2><div id="chart"></div></div>
   <div class="two-c" style="margin-top:16px">
-    <div class="card"><h2>Payment methods</h2><div id="slM"></div></div>
+    <div class="card"><h2>Payment methods <span>net of refunds</span></h2><div id="slM"></div></div>
     <div class="card"><h2>Top products</h2><div id="slT"></div></div>
   </div>
   <div class="card" style="margin-top:16px"><h2>Receipts <span id="sum"></span></h2>
     <div class="row" style="margin-top:0"><input class="big" id="sq" dir="auto" placeholder="Search by receipt number, cashier or item"><button class="btn" id="csv">Export CSV</button></div>
     <div id="sl"></div>
   </div>
+  <div class="card" style="margin-top:16px"><h2>Returns <span id="rsum"></span></h2>
+    <div class="row" style="margin-top:0"><button class="btn" id="rcsv">Export CSV</button></div>
+    <div id="rl"></div>
+  </div>
 </section>
+
+<!-- RETURNS -->
+<section id="returns" class="tab"><div class="grid two">
+  <div>
+    <div class="card"><h2>Find a receipt</h2>
+      <div class="row" style="margin-top:0"><input class="big" id="rtCode" dir="auto" placeholder="Scan barcode or type receipt no." autocomplete="off" inputmode="search"><button class="btn p" id="rtGo">Find</button></div>
+      <p class="hint" id="rtMsg" role="status">Scan the barcode on the customer’s receipt. A USB scanner works without clicking.</p>
+      <p class="hint" style="margin-top:4px">Receipts can be returned for 48 hours after purchase, on any shift.</p>
+    </div>
+    <div class="card"><h2>Recent returns</h2><div id="rtRecent"></div></div>
+  </div>
+  <div class="card" id="rtPanel"><div class="empty">Scan a receipt to start a return.</div></div>
+</div></section>
 
 <!-- SHIFT -->
 <section id="shift" class="tab"><div class="grid two">
@@ -292,6 +330,7 @@ dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow
     <label class="lb" for="sName">Store name (printed on receipts)</label><input id="sName" class="w100" dir="auto">
     <label class="lb" for="sSocial">Social media username (printed on receipts)</label><input id="sSocial" class="w100" placeholder="Fazara.eg">
     <div class="f2"><div><label class="lb" for="sTax">Tax rate (%)</label><input id="sTax" type="number" min="0" step="any" class="w100"></div><div><label class="lb" for="sPaper">Receipt paper</label><select id="sPaper" class="w100"><option value="auto">Fill the printer paper (recommended)</option><option value="r80">80 mm roll, fixed</option><option value="r58">58 mm roll, fixed</option></select></div></div>
+    <label class="lb" for="sRefund">Manager approval needed for refunds above (EGP)</label><input id="sRefund" type="number" min="0" step="any" class="w100" inputmode="decimal"><p class="hint">Returns are accepted for 48 hours after purchase. Refunds above this amount, or refunds to a different method than the original, need a manager to sign in.</p>
     <label class="lb" for="sLang">Product names from the online database</label><select id="sLang" class="w100"><option value="en">English</option><option value="ar">Arabic (when available)</option></select>
     <label class="lb" for="sSize">Receipt text size</label><select id="sSize" class="w100"><option value="s">Small</option><option value="m">Medium</option><option value="l">Large</option></select>
     <label class="sw" style="margin:14px 0 0"><input type="checkbox" id="sAuto">Print the receipt after every sale</label>
@@ -322,6 +361,13 @@ dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow
   <label class="lb" for="adjN">Note (optional)</label><input id="adjN" class="w100" dir="auto" placeholder="Supplier, reason…">
   <div class="row"><button class="btn p big" id="adjGo">Save</button><button class="btn" id="adjX">Cancel</button></div></dialog>
 
+<dialog id="rcd" class="wide"><div id="rcdBody"></div><div class="row" id="rcdAct"></div></dialog>
+<dialog id="apv"><h2>Manager approval</h2><p class="hint" id="apvS" style="margin:0"></p>
+  <label class="lb" for="apvE">Manager email</label><input id="apvE" class="w100" type="email" autocomplete="off" inputmode="email">
+  <label class="lb" for="apvP">Manager password</label><input id="apvP" class="w100" type="password" autocomplete="off">
+  <p class="err" id="apvErr" role="alert"></p>
+  <div class="row"><button class="btn p big" id="apvGo">Approve and refund</button><button class="btn" id="apvX">Cancel</button></div></dialog>
+
 <script>
 (function(){
   var logo=document.getElementById('lgn').src,b=document.getElementById('bootMk');b.src=logo;
@@ -345,7 +391,7 @@ dialog{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow
 </script>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,setPersistence,inMemoryPersistence} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,getDoc,getDocs,setDoc,updateDoc,deleteDoc,onSnapshot,query,where,orderBy,limit,writeBatch,increment,runTransaction} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const LOGO=document.getElementById("lgn").src,LW=440,LH=454,MONO="data:image/png;base64,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";
@@ -382,11 +428,33 @@ const PM={cash:'Cash',visa:'Visa',instapay:'InstaPay',wallet:'Wallet'};
 const REF={visa:'Card approval code or last 4 digits (optional)',instapay:'InstaPay reference number (optional)',wallet:'Wallet number or transaction ID (optional)'};
 $('mk').src=MONO;$('lgn').src=LOGO;{const ic=document.createElement('link');ic.rel='icon';ic.href=MONO;document.head.append(ic)}
 const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670\u0640]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');
-const DEF={store:'Fazara',social:'Fazara.eg',tax:0,lang:'en',paper:'auto',autoPrint:false,rsize:'m',nextNo:1};
+const DEF={store:'Fazara',social:'Fazara.eg',tax:0,lang:'en',paper:'auto',autoPrint:false,rsize:'m',nextNo:1,nextRet:1,refundLimit:200};
 const PAPERS=['auto','r80','r58'],RF={s:.037,m:.043,l:.053};
 
+/* ---------- receipt barcodes (Code 128) ---------- */
+const WIN=48*36e5; /* returns accepted for exactly 48 hours after the purchase time */
+const expOf=s=>(+s.at||0)+WIN;
+const fmtDate=t=>new Date(t).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+const groupRid=r=>String(r).replace(/(\d{4})(?=\d)/g,'$1 ');
+const rtNo=r=>'RT-'+String(r.no).padStart(4,'0');
+const C128='212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 114131 311141 411131 211412 211214 211232 2331112'.split(' ');
+/* 16 digits: 13-digit purchase time in ms + 3 random digits. Also used as the sale's document id. */
+function newRid(){let r;do{r=String(Date.now())+String(Math.floor(Math.random()*1000)).padStart(3,'0')}while(sales.some(s=>s.rid===r||s.id===r));return r}
+function barcodeSvg(d){
+  d=String(d).replace(/\D/g,'');if(d.length%2)d='0'+d;
+  const v=[105];for(let i=0;i<d.length;i+=2)v.push(+d.slice(i,i+2));
+  let c=105;for(let k=1;k<v.length;k++)c+=v[k]*k;v.push(c%103,106);
+  let x=10,p='';
+  v.forEach(val=>{const w=C128[val];for(let i=0;i<w.length;i++){const n=+w[i];if(i%2===0)p+='M'+x+' 0h'+n+'v1h-'+n+'z';x+=n}});
+  return `<svg class="bc" viewBox="0 0 ${x+10} 1" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="Receipt barcode ${d}"><path fill="#000" d="${p}"/></svg>`;
+}
+function bcHtml(s){
+  if(!s.rid)return'';
+  return `<div class="rc-bc">${barcodeSvg(s.rid)}<div class="bn">${groupRid(s.rid)}</div><div class="bm">Receipt ${pad(s.no)}</div><div class="bt">Returns accepted within 48 hours of purchase.<br>Please keep this receipt.</div></div>`;
+}
+
 /* ---------- state ---------- */
-let user=null,profile=null,cfg={...DEF},products={},byCode={},sales=[],shifts=[],moves=[],team=[];
+let user=null,profile=null,cfg={...DEF},products={},byCode={},sales=[],shifts=[],moves=[],team=[],returns=[];
 let cart=[],held=[],shift=null,pay='cash',disc={t:'pct',v:0},cur=null,pk=[],dbInfo=null,editId=null,adjId=null,busy=false;
 let stream=null,loop=null,det=null,last='',lastAt=0,ac,tt,tab='checkout',stockF='all',range=1,cfgFilled=false;
 const unsub=[];
@@ -439,12 +507,13 @@ async function loadProfile(){
 }
 
 /* ---------- live sync ---------- */
-function stopSync(){unsub.splice(0).forEach(f=>{try{f()}catch(e){}});products={};byCode={};sales=[];shifts=[];moves=[];team=[]}
+function stopSync(){unsub.splice(0).forEach(f=>{try{f()}catch(e){}});products={};byCode={};sales=[];shifts=[];moves=[];team=[];returns=[];rtReset()}
 function startSync(){
   stopSync();
   const since=Date.now()-90*864e5;
   unsub.push(onSnapshot(collection(fs,'products'),s=>{products={};byCode={};s.forEach(d=>{const p={id:d.id,...d.data()};products[d.id]=p;byCode[p.code]=p});onProducts()},syncErr));
-  unsub.push(onSnapshot(query(collection(fs,'sales'),where('at','>=',since),orderBy('at','desc'),limit(3000)),s=>{sales=s.docs.map(d=>({id:d.id,...d.data()}));refreshTab()},syncErr));
+  unsub.push(onSnapshot(query(collection(fs,'sales'),where('at','>=',since),orderBy('at','desc'),limit(3000)),s=>{sales=s.docs.map(d=>({id:d.id,...d.data()}));syncRt();refreshTab()},syncErr));
+  unsub.push(onSnapshot(query(collection(fs,'returns'),where('at','>=',since),orderBy('at','desc'),limit(3000)),s=>{returns=s.docs.map(d=>({id:d.id,...d.data()}));refreshTab()},syncErr));
   unsub.push(onSnapshot(query(collection(fs,'shifts'),orderBy('end','desc'),limit(20)),s=>{shifts=s.docs.map(d=>d.data());if(tab==='shift')renderShift()},syncErr));
   unsub.push(onSnapshot(query(collection(fs,'stockMoves'),orderBy('at','desc'),limit(40)),s=>{moves=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==='stock')renderStock()},syncErr));
   unsub.push(onSnapshot(doc(fs,'settings','store'),s=>{cfg={...DEF,...(s.data()||{})};if(!PAPERS.includes(cfg.paper))cfg.paper='auto';render();if(tab==='settings'&&!cfgFilled)renderSettings()},syncErr));
@@ -455,14 +524,14 @@ function onProducts(){
   $('lowBdg').hidden=!low;$('lowBdg').textContent=low;
   refreshTab();
 }
-function refreshTab(){({checkout:()=>{},products:renderDB,stock:renderStock,sales:renderSales,shift:renderShift,settings:renderSettings}[tab]||(()=>{}))();dayChip()}
+function refreshTab(){({checkout:()=>{},products:renderDB,stock:renderStock,sales:renderSales,shift:renderShift,settings:renderSettings,returns:rtSoft}[tab]||(()=>{}))();dayChip()}
 
 /* ---------- tabs ---------- */
-function go(t){tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id===t));if(t==='settings')cfgFilled=false;refreshTab();scrollTo(0,0)}
+function go(t){tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id===t));if(t==='settings')cfgFilled=false;refreshTab();scrollTo(0,0);if(t==='returns')rtFocus()}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 /* a USB scanner types like a keyboard: send keystrokes to the search box */
 document.addEventListener('keydown',e=>{
-  if(tab==='checkout'&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)&&!document.querySelector('dialog[open]')&&e.key.length===1&&!e.ctrlKey&&!e.metaKey)$('code').focus();
+  if((tab==='checkout'||tab==='returns')&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)&&!document.querySelector('dialog[open]')&&e.key.length===1&&!e.ctrlKey&&!e.metaKey)(tab==='returns'?$('rtCode'):$('code')).focus();
   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)&&tab==='checkout')done();
 });
 
@@ -518,6 +587,7 @@ async function find(q,scan){
   let p=byCode[q]||null,g=null;
   if(!p){const w=weighted(q);if(w){p=w.p;g=w.g}}
   if(p){showProd(p,p.code,g,q,scan);return}
+  if(/^\d{16}$/.test(q)){rtOpen(q);return}
   const isBarcode=/^\d{8,14}$/.test(q);
   if(!isBarcode){const l=localSearch(q);if(l.length){picks(l,true,q);return}}
   msg('Looking up…');$('go').disabled=true;
@@ -577,15 +647,15 @@ function rcHtml(s,liveMode){
   const mr=(a,b)=>`<div class="mr"><span class="lab">${a}</span><span>${b}</span></div>`;
   return `<div class="rc">
     ${rcHead('Sales receipt')}${orn}
-    <div class="rc-m">${mr('Receipt',pad(s.no))}${mr('Date',fmt(s.at))}${s.cashier?mr('Served by',esc(s.cashier)):''}</div>
+    <div class="rc-m">${mr('Receipt',pad(s.no))}${mr('Date',fmtDate(s.at))}${mr('Time',fmtTime(s.at))}${s.cashier?mr('Served by',esc(s.cashier)):''}${s.rid?mr('Return by',fmt(expOf(s))):''}</div>
     <div class="rc-ch"><span class="lab">Item</span><span class="lab">Amount</span></div>
     <div class="rc-i">${has?lines:'<div class="empty">Nothing scanned yet.<br>Scan a barcode or search for an item to start a sale.</div>'}</div>
     ${has?`<div class="rc-s">${rowH('Total items',units,'n')}${rowH('Subtotal',num(s.sub))}${s.d?rowH('Discount','− '+num(s.d)):''}${s.tax?rowH('Tax '+(cfg.tax||0)+'%',num(s.tax)):''}</div>
     <div class="rc-t"><span>Total price</span><b><em>EGP</em>${num(s.total)}</b></div>
     <div class="rc-p">${rowH('Settled by',PM[m])}${m==='cash'&&cash?rowH('Cash received',money(s.cash))+(s.cash>=s.total?rowH('Change',money(rd(s.cash-s.total))):''):''}${s.ref?rowH('Reference',esc(s.ref)):''}</div>`:''}
-    ${orn}
+    ${bcHtml(s)}${orn}
     <div class="rc-f"><p class="ty" dir="auto">Thank you for choosing ${esc(cfg.store)}</p><p class="sb">We look forward to welcoming you again.</p>${s.d>0?`<p class="sv">You saved ${money(s.d)}</p>`:''}${handle()?`<p class="soc">Follow us<b>@${esc(handle())}</b></p>`:''}</div>
-    ${s.void?'<div class="rc-v">VOIDED</div>':''}
+    ${s.void?'<div class="rc-v">VOIDED</div>':s.rstat==='full'?'<div class="rc-v">FULLY RETURNED</div>':s.rstat==='partial'?'<div class="rc-v">PARTLY RETURNED</div>':''}
   </div>`;
 }
 async function printDoc(h){
@@ -600,7 +670,7 @@ async function printDoc(h){
     $('pgStyle').textContent='@page{size:'+fixed+'mm '+(Math.ceil(px*25.4/96)+4)+'mm;margin:0}'}
   p.style.setProperty('--rf',RF[cfg.rsize]||RF.m);
   setTimeout(()=>window.print(),60)}
-function rText(s){return [cfg.store,pad(s.no)+' · '+fmt(s.at),'',...s.items.map(i=>`${i.name}  ${i.qty} × ${num(i.price)} = ${num(i.price*i.qty)}`),'','Total: '+money(s.total),'Paid by '+PM[s.method||'cash'],'','Thank you for shopping at '+cfg.store+(handle()?'\nFollow us @'+handle():'')].join('\n')}
+function rText(s){return [cfg.store,pad(s.no)+' · '+fmt(s.at),'',...s.items.map(i=>`${i.name}  ${i.qty} × ${num(i.price)} = ${num(i.price*i.qty)}`),'','Total: '+money(s.total),'Paid by '+PM[s.method||'cash'],...(s.rid?['Receipt barcode: '+groupRid(s.rid),'Returns accepted until '+fmt(expOf(s))]:[]),'','Thank you for shopping at '+cfg.store+(handle()?'\nFollow us @'+handle():'')].join('\n')}
 async function shareSale(s){const t=rText(s);try{if(navigator.share){await navigator.share({text:t});return}await navigator.clipboard.writeText(t);toast('Receipt copied. Paste it into WhatsApp.')}catch(e){}}
 
 function render(){
@@ -635,8 +705,8 @@ async function done(){
   busy=true;$('done').disabled=true;
   const no=await claimNo();
   const items=cart.map(i=>({name:i.name,code:i.code,pid:i.pid||null,price:i.price,qty:i.qty,u:i.u??1,cost:i.cost||0}));
-  const sale=clean({no,at:Date.now(),shift:shift.id,cashier:shift.cashier,uid:user.uid,method:pay,ref:pay==='cash'?'':$('ref').value.trim(),items,...t,cash:pay==='cash'&&c>=0?c:null,void:false});
-  const b=writeBatch(fs);b.set(doc(fs,'sales',newId()),sale);deduct(b,items,-1);b.commit().catch(syncErr);
+  const at=Date.now(),rid=newRid(),sale=clean({no,at,exp:at+WIN,rid,shift:shift.id,cashier:shift.cashier,uid:user.uid,method:pay,ref:pay==='cash'?'':$('ref').value.trim(),items,...t,cash:pay==='cash'&&c>=0?c:null,void:false});
+  const b=writeBatch(fs);b.set(doc(fs,'sales',rid),sale);deduct(b,items,-1);b.commit().catch(syncErr);
   toast('Sale '+pad(no)+' complete · '+PM[pay]+' · '+money(t.total));
   cart=[];disc={t:'pct',v:0};$('dv').value=0;$('dt').value='pct';$('cash').value='';$('ref').value='';setPay('cash');busy=false;beep();render();dayChip();
   if(cfg.autoPrint)printDoc(rcHtml(sale,false));
@@ -648,19 +718,20 @@ $('heldBox').onclick=e=>{const b=e.target.closest('button');if(!b)return;
   held=held.filter(x=>String(x.id)!==(b.dataset.r||b.dataset.d));sv(K('held'),held);render();renderHeld()};
 
 /* ---------- shift ---------- */
-const shTotals=id=>{const T={n:0,total:0,disc:0,voids:0,by:{cash:{n:0,t:0},visa:{n:0,t:0},instapay:{n:0,t:0},wallet:{n:0,t:0}}};sales.filter(x=>x.shift===id).forEach(x=>{if(x.void){T.voids++;return}T.n++;T.total+=x.total;T.disc+=x.d||0;if(T.by[x.method]){T.by[x.method].n++;T.by[x.method].t+=x.total}});T.total=rd(T.total);return T};
-const moved=()=>sum(shift.moves||[],m=>m.amt),expCash=()=>rd(shift.float+shTotals(shift.id).by.cash.t+moved());
+const shTotals=id=>{const T={n:0,total:0,disc:0,voids:0,by:{cash:{n:0,t:0},visa:{n:0,t:0},instapay:{n:0,t:0},wallet:{n:0,t:0}}};sales.filter(x=>x.shift===id).forEach(x=>{if(x.void){T.voids++;return}T.n++;T.total+=x.total;T.disc+=x.d||0;if(T.by[x.method]){T.by[x.method].n++;T.by[x.method].t+=x.total}});T.total=rd(T.total);const R=returns.filter(r=>r.shift===id);T.rby={cash:0,visa:0,instapay:0,wallet:0};R.forEach(r=>{T.rby[r.method]=rd((T.rby[r.method]||0)+r.amount)});T.refunds=sum(R,r=>r.amount);T.rn=R.length;T.rx=sum(R.filter(r=>r.xs),r=>r.amount);T.net=rd(T.total-T.refunds);return T};
+const moved=()=>sum(shift.moves||[],m=>m.amt),expCash=()=>{const T=shTotals(shift.id);return rd(shift.float+T.by.cash.t-T.rby.cash+moved())};
 function dayChip(){const T=shift&&shTotals(shift.id);$('chip').textContent=shift?shift.cashier+' · '+T.n+' sale'+(T.n===1?'':'s')+' · '+money(T.total):'No shift open'}
 function startDlg(){$('shName').value=(shift&&shift.cashier)||(profile&&profile.name)||'';$('shFloat').value=ld(K('float'),'');if(!$('dlg').open)$('dlg').showModal()}
 function updVar(){const v=$('var'),c=parseFloat($('count').value);v.className='chg';v.textContent='';if(!shift||!(c>=0))return;const d=rd(c-expCash());v.textContent=d===0?'Drawer is balanced':(d>0?'Over by ':'Short by ')+money(Math.abs(d));v.classList.add(d===0?'ok':'bad')}
 function zHtml(r){const m=Object.keys(PM).map(k=>rowH(PM[k]+' ('+r.T.by[k].n+')',money(r.T.by[k].t))).join('');
-  return `<div class="rc rz">${rcHead('Shift report')}${orn}${rowH('Cashier',esc(r.cashier))}${rowH('Opened',fmt(r.start))}${rowH('Closed',fmt(r.end))}<hr>${m}${rowH('Total sales ('+r.T.n+')',money(r.T.total),'g')}${rowH('Discounts given',money(r.T.disc))}${rowH('Voided receipts',r.T.voids)}<hr>${rowH('Opening cash',money(r.float))}${r.mv?rowH('Cash in/out',money(r.mv)):''}${rowH('Expected cash',money(r.expected))}${rowH('Counted cash',money(r.counted))}${rowH('Difference',(r.diff>0?'+':'')+money(r.diff),'g')}</div>`}
+  return `<div class="rc rz">${rcHead('Shift report')}${orn}${rowH('Cashier',esc(r.cashier))}${rowH('Opened',fmt(r.start))}${rowH('Closed',fmt(r.end))}<hr>${m}${rowH((r.T.refunds?'Gross sales (':'Total sales (')+r.T.n+')',money(r.T.total),'g')}${r.T.refunds?rowH('Refunds ('+r.T.rn+')','− '+money(r.T.refunds))+(r.T.rx?rowH('Earlier-shift receipts','− '+money(r.T.rx)):'')+rowH('Net sales',money(r.T.net),'g'):''}${rowH('Discounts given',money(r.T.disc))}${rowH('Voided receipts',r.T.voids)}<hr>${rowH('Opening cash',money(r.float))}${r.mv?rowH('Cash in/out',money(r.mv)):''}${r.T.rby&&r.T.rby.cash?rowH('Cash refunds','− '+money(r.T.rby.cash)):''}${rowH('Expected cash',money(r.expected))}${rowH('Counted cash',money(r.counted))}${rowH('Difference',(r.diff>0?'+':'')+money(r.diff),'g')}</div>`}
 function renderShift(){
-  $('psl').innerHTML=shifts.length?shifts.slice(0,10).map(r=>`<div class="ln"><div class="nm">${esc(r.cashier)}<small>${fmt(r.start)} · ${money(r.T.total)} · ${r.diff===0?'balanced':(r.diff>0?'over ':'short ')+money(Math.abs(r.diff))}</small></div><span></span><div><button class="lnk" data-z="${r.id}">Reprint</button></div></div>`).join(''):'<div class="empty">Closed shifts appear here.</div>';
+  $('psl').innerHTML=shifts.length?shifts.slice(0,10).map(r=>`<div class="ln"><div class="nm">${esc(r.cashier)}<small>${fmt(r.start)} · ${money(r.T.total)}${r.T.refunds?' · refunds '+money(r.T.refunds):''} · ${r.diff===0?'balanced':(r.diff>0?'over ':'short ')+money(Math.abs(r.diff))}</small></div><span></span><div><button class="lnk" data-z="${r.id}">Reprint</button></div></div>`).join(''):'<div class="empty">Closed shifts appear here.</div>';
   if(!shift){$('shInfo').innerHTML='<div class="empty">No shift is open.</div><div class="row"><button class="btn p big" id="shOpen">Start shift</button></div>';$('shTot').innerHTML='';$('shOpen').onclick=startDlg;return}
   const T=shTotals(shift.id);
   $('shInfo').innerHTML=rowH('Cashier','<b>'+esc(shift.cashier)+'</b>')+rowH('Started',fmt(shift.start))+rowH('Opening cash',money(shift.float));
-  $('shTot').innerHTML=Object.keys(PM).map(k=>rowH(PM[k]+' ('+T.by[k].n+')',money(T.by[k].t))).join('')+rowH('Total sales ('+T.n+')',money(T.total),'g')+(moved()?rowH('Cash in/out',money(moved())):'')+rowH('Expected cash in drawer','<b>'+money(expCash())+'</b>');updVar()}
+  $('shTot').innerHTML=Object.keys(PM).map(k=>rowH(PM[k]+' ('+T.by[k].n+')',money(T.by[k].t))).join('')+rowH((T.refunds?'Gross sales (':'Total sales (')+T.n+')',money(T.total),'g')+(T.refunds?rowH('Refunds ('+T.rn+')','− '+money(T.refunds))+(T.rx?rowH('Earlier-shift receipts','− '+money(T.rx)):'')+rowH('Net sales',money(T.net),'g'):'')+(moved()?rowH('Cash in/out',money(moved())):'')+(T.rby.cash?rowH('Cash refunds','− '+money(T.rby.cash)):'')+rowH('Expected cash in drawer','<b>'+money(expCash())+'</b>')+shRetList();updVar()}
+function shRetList(){const R=returns.filter(r=>r.shift===shift.id);return R.length?'<h2 style="margin:18px 0 4px;font-size:16px">Returns this shift</h2>'+R.map(r=>`<div class="ln" style="grid-template-columns:minmax(0,1fr) auto"><div class="nm">${rtNo(r)} · receipt ${pad(r.sno)}<small>${fmtTime(r.at)} · ${PM[r.method]||''}${r.xs?' · sold on an earlier shift ('+esc(r.sCashier||'')+')':''}</small></div><div class="amt refund">− ${money(r.amount)}</div></div>`).join(''):''}
 function endShift(){
   if(!shift){startDlg();return}
   const cnt=parseFloat($('count').value);if(!(cnt>=0)){toast('Count the cash in the drawer and enter the amount first.');$('count').focus();return}
@@ -720,11 +791,11 @@ function renderStock(){
   const all=Object.values(products),tr=all.filter(p=>p.track);
   const out=tr.filter(p=>stockState(p)==='out').length,low=tr.filter(p=>stockState(p)==='low').length;
   const cost=sum(tr,p=>Math.max(0,+p.stock||0)*(+p.cost||0)),retail=sum(tr,p=>Math.max(0,+p.stock||0)*(+p.price||0));
-  $('stK').innerHTML=`<div class="kpi"><small>Tracked products</small><b>${tr.length}</b></div><div class="kpi"><small>Low on stock</small><b>${low}</b></div><div class="kpi"><small>Out of stock</small><b>${out}</b></div><div class="kpi own"><small>Stock value at cost</small><b>${money(cost)}</b></div><div class="kpi own"><small>Stock value at selling price</small><b>${money(retail)}</b></div>`;
+  $('stK').innerHTML=`<div class="kpi"><small>Tracked products</small><b>${tr.length}</b></div><div class="kpi"><small>Low on stock</small><b>${low}</b></div><div class="kpi"><small>Out of stock</small><b>${out}</b></div>${all.some(p=>p.dmg>0)?`<div class="kpi"><small>Damaged returns (not for sale)</small><b>${rd3(sum(all,p=>+p.dmg||0))}</b></div>`:''}<div class="kpi own"><small>Stock value at cost</small><b>${money(cost)}</b></div><div class="kpi own"><small>Stock value at selling price</small><b>${money(retail)}</b></div>`;
   const q=norm($('stq').value);
   const rows=all.filter(p=>norm(p.name+' '+p.code).includes(q)).filter(p=>stockF==='all'||(stockF==='none'?!p.track:p.track&&(stockF==='low'?stockState(p)==='low':stockState(p)==='out'))).sort((a,b)=>{const r={out:0,low:1,ok:2};return (a.track?r[stockState(a)]:3)-(b.track?r[stockState(b)]:3)||a.name.localeCompare(b.name)});
-  $('stl').innerHTML=rows.length?rows.map(p=>{const st=p.track?stockState(p):'';return `<div class="ln"><div class="nm" dir="auto">${esc(p.name)}<small>${esc(String(p.code).replace('PLU:','PLU '))}${p.min>0?' · warn at '+p.min:''}</small></div><div class="oh ${st}"><b>${p.track?rd3(p.stock||0):'—'}</b><small>${p.track?(p.type==='weight'?'kg on hand':'on hand'):'not tracked'}</small></div><div><button class="lnk" data-a="${esc(p.id)}" data-m="add">Add</button><button class="lnk" data-a="${esc(p.id)}" data-m="set">${p.track?'Count':'Track'}</button></div></div>`}).join(''):'<div class="empty">'+(all.length?'Nothing matches this filter.':'Add products first, then track their stock here.')+'</div>';
-  $('stm').innerHTML=moves.length?moves.map(m=>`<div class="ln"><div class="nm" dir="auto">${esc(m.name)}<small>${esc(m.reason)}${m.note?' · '+esc(m.note):''} · ${esc(m.by||'')} · ${fmt(m.at)}</small></div><div class="amt" style="color:${m.delta<0?'var(--red)':'var(--brand)'}">${m.delta>0?'+':''}${rd3(m.delta)}</div><span></span></div>`).join(''):'<div class="empty">Deliveries, counts and corrections you record show up here.</div>';
+  $('stl').innerHTML=rows.length?rows.map(p=>{const st=p.track?stockState(p):'';return `<div class="ln"><div class="nm" dir="auto">${esc(p.name)}<small>${esc(String(p.code).replace('PLU:','PLU '))}${p.min>0?' · warn at '+p.min:''}${p.dmg>0?' · '+rd3(p.dmg)+' damaged, not for sale':''}</small></div><div class="oh ${st}"><b>${p.track?rd3(p.stock||0):'—'}</b><small>${p.track?(p.type==='weight'?'kg on hand':'on hand'):'not tracked'}</small></div><div><button class="lnk" data-a="${esc(p.id)}" data-m="add">Add</button><button class="lnk" data-a="${esc(p.id)}" data-m="set">${p.track?'Count':'Track'}</button></div></div>`}).join(''):'<div class="empty">'+(all.length?'Nothing matches this filter.':'Add products first, then track their stock here.')+'</div>';
+  $('stm').innerHTML=moves.length?moves.map(m=>`<div class="ln"><div class="nm" dir="auto">${esc(m.name)}<small>${esc(m.reason)}${m.note?' · '+esc(m.note):''} · ${esc(m.by||'')} · ${fmt(m.at)}</small></div><div class="amt" style="color:${m.dq||m.delta<0?'var(--red)':'var(--brand)'}">${m.dq?rd3(m.dq)+' damaged':(m.delta>0?'+':'')+rd3(m.delta)}</div><span></span></div>`).join(''):'<div class="empty">Deliveries, counts and corrections you record show up here.</div>';
 }
 $('stl').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;openAdj(b.dataset.a,b.dataset.m)};
 function adjLabel(){const m=$('adjM').value;$('adjQL').textContent=m==='add'?'Quantity to add':m==='remove'?'Quantity to remove':'Counted on the shelf';$('adjCB').hidden=m!=='add'}
@@ -758,35 +829,315 @@ function chartHtml(L){
   const mx=Math.max(1,...vals);
   return `<div class="bars" role="img" aria-label="Revenue chart">${vals.map((v,i)=>`<div class="bar" title="${esc(labs[i]||'')} ${money(v)}"><div class="col"><i style="height:${v?Math.max(2,v/mx*100):0}%"></i></div><span>${labs[i]}</span></div>`).join('')}</div>`}
 function renderSales(){
-  const all=sales.filter(s=>s.at>=startOf(range)),L=all.filter(live);
-  const rev=sum(L,s=>s.total),n=L.length,items=sum(L,s=>s.items.reduce((a,i)=>a+i.qty,0)),dsc=sum(L,s=>s.d||0),gp=rd(L.reduce((a,s)=>a+profitOf(s),0)),hasCost=L.some(s=>s.items.some(i=>i.cost>0));
-  $('slK').innerHTML=`<div class="kpi"><small>Revenue</small><b>${money(rev)}</b></div><div class="kpi"><small>Sales</small><b>${n}</b></div><div class="kpi"><small>Average sale</small><b>${money(n?rev/n:0)}</b></div><div class="kpi"><small>Items sold</small><b>${rd3(items)}</b></div>${hasCost?`<div class="kpi own"><small>Profit (items with a cost)</small><b>${money(gp)}</b></div>`:''}<div class="kpi"><small>Discounts given</small><b>${money(dsc)}</b></div>`;
-  $('chT').textContent=range===1?'Revenue by hour':'Revenue by day';$('chart').innerHTML=chartHtml(L);
-  const by={};L.forEach(s=>{const k=s.method||'cash';by[k]=(by[k]||0)+s.total});const mx=Math.max(1,...Object.values(by));
-  $('slM').innerHTML=n?Object.keys(PM).map(k=>`<div class="mrow"><span>${PM[k]}</span><span class="tk"><i style="width:${(by[k]||0)/mx*100}%"></i></span><b>${money(by[k]||0)}</b></div>`).join(''):'<div class="empty">No sales in this period.</div>';
+  const from=startOf(range),all=sales.filter(s=>s.at>=from),L=all.filter(live),RR=returns.filter(r=>r.at>=from);
+  const rev=sum(L,s=>s.total),ref=sum(RR,r=>r.amount),net=rd(rev-ref),n=L.length,items=sum(L,s=>s.items.reduce((a,i)=>a+i.qty,0)),dsc=sum(L,s=>s.d||0);
+  const gp=rd(L.reduce((a,s)=>a+profitOf(s),0)-RR.reduce((a,r)=>a+retProfit(r),0)),hasCost=L.some(s=>s.items.some(i=>i.cost>0));
+  $('slK').innerHTML=`<div class="kpi"><small>Gross sales</small><b>${money(rev)}</b></div><div class="kpi"><small>Refunds${RR.length?' ('+RR.length+')':''}</small><b class="${ref?'refund':''}">${ref?'− ':''}${money(ref)}</b></div><div class="kpi"><small>Net sales</small><b>${money(net)}</b></div><div class="kpi"><small>Sales</small><b>${n}</b></div><div class="kpi"><small>Average sale</small><b>${money(n?rev/n:0)}</b></div><div class="kpi"><small>Items sold</small><b>${rd3(items)}</b></div>${hasCost?`<div class="kpi own"><small>Profit, after returns (items with a cost)</small><b>${money(gp)}</b></div>`:''}<div class="kpi"><small>Discounts given</small><b>${money(dsc)}</b></div>`;
+  $('chT').textContent=range===1?'Gross sales by hour':'Gross sales by day';$('chart').innerHTML=chartHtml(L);
+  const by={},rb={};L.forEach(s=>{const k=s.method||'cash';by[k]=(by[k]||0)+s.total});RR.forEach(r=>{rb[r.method]=(rb[r.method]||0)+r.amount});
+  const nm=k=>rd((by[k]||0)-(rb[k]||0)),mx=Math.max(1,...Object.keys(PM).map(k=>Math.abs(nm(k))));
+  $('slM').innerHTML=n||RR.length?Object.keys(PM).map(k=>`<div class="mrow"><span>${PM[k]}</span><span class="tk"><i style="width:${Math.max(0,nm(k))/mx*100}%"></i></span><b>${money(nm(k))}</b></div>`).join(''):'<div class="empty">No sales in this period.</div>';
   const tp={};L.forEach(s=>s.items.forEach(i=>{const t=tp[i.name]||(tp[i.name]={q:0,r:0});t.q+=i.qty;t.r+=i.price*i.qty}));
-  const top=Object.entries(tp).sort((a,b)=>b[1].r-a[1].r).slice(0,5);
+  RR.forEach(r=>(r.lines||[]).forEach(l=>{const t=tp[l.name];if(t){t.q-=l.qty;t.r-=l.price*l.qty}}));
+  const top=Object.entries(tp).filter(([k,v])=>v.q>0).sort((a,b)=>b[1].r-a[1].r).slice(0,5);
   $('slT').innerHTML=top.length?top.map(([k,v])=>`<div class="mrow" style="grid-template-columns:1fr auto auto"><span dir="auto">${esc(k)}</span><small style="color:var(--mute)">${rd3(v.q)} sold</small><b>${money(v.r)}</b></div>`).join(''):'<div class="empty">No sales in this period.</div>';
   $('sum').textContent=all.length?'('+L.length+' sales · '+money(rev)+')':'';
-  const q=norm($('sq').value),rows=all.filter(s=>!q||norm(pad(s.no)+' '+(s.cashier||'')+' '+s.items.map(i=>i.name).join(' ')).includes(q)).slice(0,200);
-  $('sl').innerHTML=rows.length?rows.map(s=>`<div class="ln${s.void?' vd':''}"><div class="nm">${pad(s.no)}${s.void?' (voided)':''}<small>${range===1?fmtTime(s.at):fmt(s.at)} · ${rd3(s.items.reduce((a,i)=>a+i.qty,0))} items · ${PM[s.method||'cash']}${s.cashier?' · '+esc(s.cashier):''}${s.ref?' · '+esc(s.ref):''}</small></div><div class="amt">${money(s.total)}</div><div><button class="lnk" data-p="${s.id}">Reprint</button><button class="lnk" data-s="${s.id}">Share</button>${s.void?'':`<button class="lnk r own" data-v="${s.id}">Void</button>`}</div></div>`).join(''):'<div class="empty">No receipts found for this period.</div>';
+  const q=norm($('sq').value),rows=all.filter(s=>!q||norm(pad(s.no)+' '+(s.rid||'')+' '+(s.cashier||'')+' '+s.items.map(i=>i.name).join(' ')).includes(q)).slice(0,200);
+  $('sl').innerHTML=rows.length?rows.map(s=>{const I=retInfo(s);return `<div class="ln${s.void?' vd':''}"><div class="nm">${pad(s.no)}${s.void?' (voided)':''} ${stTags(s,true)}<small>${range===1?fmtTime(s.at):fmt(s.at)} · ${rd3(s.items.reduce((a,i)=>a+i.qty,0))} items · ${PM[s.method||'cash']}${s.cashier?' · '+esc(s.cashier):''}${s.ref?' · '+esc(s.ref):''}</small></div><div class="amt">${money(s.total)}${s.rtotal?`<small class="refund">− ${money(s.rtotal)} refunded</small>`:''}</div><div class="acts"><button class="lnk" data-d="${s.id}">Details</button>${I.open?`<button class="lnk" data-r="${s.id}">Return</button>`:''}<button class="lnk" data-p="${s.id}">Reprint</button><button class="lnk" data-s="${s.id}">Share</button>${s.void?'':`<button class="lnk r own" data-v="${s.id}">Void</button>`}</div></div>`}).join(''):'<div class="empty">No receipts found for this period.</div>';
+  $('rsum').textContent=RR.length?'('+RR.length+' · − '+money(ref)+')':'';
+  $('rl').innerHTML=RR.length?RR.slice(0,200).map(r=>`<div class="ln"><div class="nm">${rtNo(r)} <span class="tag ${r.status==='full'?'no':'low'}">${r.status==='full'?'Full return':'Partial return'}</span><small>${fmt(r.at)} · receipt ${pad(r.sno)}${r.xs?' (sold on an earlier shift)':''} · ${esc(r.cashier||'')} · ${PM[r.method]||''}${r.approval?' · approved by '+esc(r.approval.by):''}</small></div><div class="amt refund">− ${money(r.amount)}</div><div class="acts"><button class="lnk" data-o="${esc(r.sid)}">Open</button></div></div>`).join(''):'<div class="empty">No returns in this period.</div>';
 }
-$('sl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const s=sales.find(x=>x.id===(b.dataset.p||b.dataset.s||b.dataset.v));if(!s)return;
+$('sl').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.d){openDetails(b.dataset.d);return}
+  if(b.dataset.r){rtOpenSale(b.dataset.r);return}
+  const s=sales.find(x=>x.id===(b.dataset.p||b.dataset.s||b.dataset.v));if(!s)return;
   if(b.dataset.p)printDoc(rcHtml(s,false));
   else if(b.dataset.s)shareSale(s);
+  else if(retQty(s)>0)toast('Receipt '+pad(s.no)+' already has returns, so it can’t be voided.');
   else if(confirm('Void receipt '+pad(s.no)+'? It will be removed from the totals and the stock will be returned.')){const bt=writeBatch(fs);bt.update(doc(fs,'sales',s.id),{void:true,voidAt:Date.now(),voidBy:profile.name});deduct(bt,s.items,+1);bt.commit().catch(syncErr);toast('Receipt '+pad(s.no)+' voided')}};
-$('csv').onclick=()=>{const q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl('fazara-sales.csv','\ufeffReceipt,Date,Items,Subtotal,Discount,Tax,Total,Method,Cashier,Status\n'+sales.filter(s=>s.at>=startOf(range)).map(s=>[pad(s.no),new Date(s.at).toISOString(),q(s.items.map(i=>i.qty+'x '+i.name).join('; ')),s.sub,s.d,s.tax,s.total,s.method||'cash',q(s.cashier||''),s.void?'void':''].join(',')).join('\n'),'text/csv')};
+$('rl').onclick=e=>{const b=e.target.closest('button[data-o]');if(b)openDetails(b.dataset.o)};
+const csvq=v=>'"'+String(v).replace(/"/g,'""')+'"';
+$('csv').onclick=()=>{dl('fazara-sales.csv','\ufeffReceipt,Date,Items,Subtotal,Discount,Tax,Total,Method,Cashier,Status,Barcode,Refunded,Net,Return status\n'+sales.filter(s=>s.at>=startOf(range)).map(s=>[pad(s.no),new Date(s.at).toISOString(),csvq(s.items.map(i=>i.qty+'x '+i.name).join('; ')),s.sub,s.d,s.tax,s.total,s.method||'cash',csvq(s.cashier||''),s.void?'void':'',csvq(s.rid||''),s.rtotal||0,s.void?0:rd(s.total-(s.rtotal||0)),retLabel(s)].join(',')).join('\n'),'text/csv')};
+$('rcsv').onclick=()=>{dl('fazara-returns.csv','\ufeffReturn,Date,Receipt,Purchased,Original cashier,Processed by,Shift started,Items,Refund,Refund method,Original method,Approved by,Status,Note\n'+returns.filter(r=>r.at>=startOf(range)).map(r=>[rtNo(r),new Date(r.at).toISOString(),pad(r.sno),new Date(r.sat).toISOString(),csvq(r.sCashier||''),csvq(r.cashier||''),new Date(r.shift).toISOString(),csvq((r.lines||[]).map(l=>l.qty+'x '+l.name+' ['+l.cond+']').join('; ')),r.amount,r.method,r.origMethod,csvq(r.approval?r.approval.by:''),r.status,csvq(r.note||'')].join(',')).join('\n'),'text/csv')};
+
+/* ---------- returns ---------- */
+const rqOf=(s,i)=>+((s.rq||[])[i])||0;
+const leftOf=(s,i)=>Math.max(0,(+s.items[i].qty||0)-rqOf(s,i));
+const retQty=s=>s.items.reduce((a,_,i)=>a+rqOf(s,i),0);
+function retInfo(s,now=Date.now()){
+  const left=s.items.reduce((a,_,i)=>a+leftOf(s,i),0),got=retQty(s),exp=expOf(s),full=s.items.length>0&&left===0;
+  return{void:!!s.void,full,partial:got>0&&!full,expired:now>exp,open:!s.void&&!full&&now<=exp,exp,left}
+}
+function stTags(s,compact){
+  const i=retInfo(s),t=[];
+  if(i.void){if(!compact)t.push('<span class="tag mute">Voided</span>')}
+  else if(i.full)t.push('<span class="tag no">Fully returned</span>');
+  else{
+    if(i.partial)t.push('<span class="tag low">Partly returned</span>');
+    if(i.expired)t.push('<span class="tag mute">Return expired</span>');
+    else if(!(compact&&i.partial))t.push('<span class="tag ok">'+(compact?'Returnable':'Eligible for return')+'</span>');
+  }
+  return t.join(' ')
+}
+const dur=ms=>{const m=Math.max(0,Math.floor(ms/6e4)),h=Math.floor(m/60);return h>=1?h+' h '+(m%60)+' min':m+' min'};
+const retLabel=s=>{const i=retInfo(s);return i.void?'void':i.full?'fully returned':i.partial?'partly returned':i.expired?'expired':'eligible'};
+const retProfit=r=>(r.lines||[]).reduce((a,l)=>a+(l.cost>0?l.amt-(l.cond==='good'?l.cost*(l.u||1)*l.qty:0):0),0);
+const DISP={restock:'Back in stock',damaged:'Damaged · not restocked',none:'Not stock-tracked'};
+
+/* How much to refund for the chosen quantities: the share of the amount actually paid (after discount and tax).
+   The last return on a receipt refunds exactly what is left, so the refunds always add up to the receipt total. */
+function calcRefund(s,sel){
+  const f=s.sub>0?s.total/s.sub:1,lines=[];
+  s.items.forEach((it,i)=>{const q=Math.floor(+sel[i]||0);if(q>0)lines.push({i,q,amt:rd(it.price*q*f)})});
+  const got=retQty(s),units=lines.reduce((a,l)=>a+l.q,0),all=s.items.reduce((a,it)=>a+(+it.qty||0),0);
+  const final=units>0&&got+units>=all,room=rd(s.total-(+s.rtotal||0));
+  let amount=rd(lines.reduce((a,l)=>a+l.amt,0));
+  if(lines.length&&(final||amount>room)){const diff=rd(room-amount);lines[lines.length-1].amt=rd(lines[lines.length-1].amt+diff);amount=room}
+  return{lines,amount:Math.max(0,amount),units,final,full:final&&got===0}
+}
+function rtBlock(s){
+  const I=retInfo(s);
+  if(I.void)return['This receipt was voided','A voided sale can’t be returned.'];
+  if(I.full)return['Already fully returned','Every item on this receipt has already been returned and refunded.'];
+  if(I.expired)return['Return period has ended','This receipt was issued on '+fmt(s.at)+'. Returns closed 48 hours later, on '+fmt(I.exp)+'.'];
+  return null
+}
+
+let rt={sale:null,cands:null,miss:null,sel:{},cond:{},opId:null,busy:false,method:'orig',alt:'cash',note:'',msg:null,last:null,lastQ:'',lastAt:0};
+function rtReset(){Object.assign(rt,{sale:null,cands:null,miss:null,sel:{},cond:{},opId:null,busy:false,method:'orig',alt:'cash',note:'',msg:null,last:null,lastQ:'',lastAt:0});renderRtPanel()}
+const rtSay=t=>{$('rtMsg').textContent=t};
+function syncRt(){if(!rt.sale)return;const f=sales.find(x=>x.id===rt.sale.id);if(f&&(retQty(f)>=retQty(rt.sale)||f.void))rt.sale=f}
+function rtSoft(){renderRtRecent();const a=document.activeElement;if(a&&$('rtPanel').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))return;renderRtPanel()}
+function rtBanner(k,t,s){rt.msg={k,t,s};renderRtPanel()}
+const rtFocus=()=>{if(matchMedia('(pointer:fine)').matches)$('rtCode').focus()};
+
+function rtLoad(s){
+  if(!rt.sale||rt.sale.id!==s.id){rt.sel={};rt.cond={};rt.opId=null;rt.method='orig';rt.alt='cash';rt.note='';rt.msg=null;rt.last=null}
+  rt.sale=s;rt.cands=null;rt.miss=null;renderRtPanel();
+  if(matchMedia('(max-width:900px)').matches)$('rtPanel').scrollIntoView({block:'start'})
+}
+function rtOpen(code){go('returns');$('rtCode').value=code;rtFind(code)}
+function rtOpenSale(id){const s=sales.find(x=>x.id===id);if(!s)return;go('returns');$('rtCode').value='';rt.lastQ='';rtLoad(s);rtSay('Receipt '+pad(s.no)+' loaded.')}
+
+async function rtFind(raw){
+  const q=String(raw||'').trim(),t=Date.now();
+  if(!q){rtSay('Scan the receipt barcode, or type the receipt number.');return}
+  if(q===rt.lastQ&&t-rt.lastAt<2000)return; /* repeated scan of the same code: ignore */
+  rt.lastQ=q;rt.lastAt=t;$('rtGo').disabled=true;rtSay('Looking up…');
+  const digits=q.replace(/\D/g,'');let hits=[],bad=null;
+  try{
+    if(/^rt[\s-]*\d+$/i.test(q)){
+      const r=returns.find(x=>x.no===parseInt(digits,10)),s=r&&sales.find(x=>x.id===r.sid);
+      if(s)hits=[s];else bad=['Return not found','No return with that number was found in the last 90 days.'];
+    }else if(/^[#\s\d-]+$/.test(q)&&digits){
+      if(digits.length===16){
+        hits=sales.filter(s=>s.rid===digits);
+        if(!hits.length&&navigator.onLine!==false){try{const d=await getDoc(doc(fs,'sales',digits));if(d.exists())hits=[{id:d.id,...d.data()}]}catch(e){}}
+        if(!hits.length)bad=['Receipt barcode not recognised','No sale has this barcode. Scan it again, or type the receipt number.'+(navigator.onLine===false?' You are offline, so sales made on other devices may not be here yet.':'')];
+      }else if(digits.length<16){
+        const n=parseInt(digits,10);hits=sales.filter(s=>s.no===n);
+        if(!hits.length)bad=['Receipt '+pad(n)+' not found','No receipt with this number in the last 90 days. Check the number, or scan the barcode.'];
+      }else bad=['Barcode not recognised','That code is too long to be a Fazara receipt barcode. Scan it again.'];
+    }else bad=['Not a receipt code','Scan the barcode printed on the receipt, or type the receipt number (for example 12).'];
+  }catch(e){console.error(e);bad=['Lookup failed','Something went wrong while looking up the receipt. Try again.']}
+  $('rtGo').disabled=false;
+  if(bad){rt.sale=null;rt.cands=null;rt.miss={t:bad[0],s:bad[1]};rtSay(bad[0]+'.');beep(false);renderRtPanel();$('rtCode').select();return}
+  if(hits.length>1){rt.sale=null;rt.miss=null;rt.cands=hits;rtSay(hits.length+' receipts share this number. Pick the right one.');beep();renderRtPanel();return}
+  $('rtCode').value='';rtLoad(hits[0]);rtSay('Receipt '+pad(hits[0].no)+' loaded.');beep();rtFocus()
+}
+
+function renderRtRecent(){
+  const L=returns.slice(0,12);
+  $('rtRecent').innerHTML=L.length?L.map(r=>`<div class="ln" style="grid-template-columns:minmax(0,1fr) auto auto"><div class="nm">${rtNo(r)} · ${pad(r.sno)}<small>${fmt(r.at)} · ${PM[r.method]||''}${r.xs?' · earlier shift':''}</small></div><div class="amt refund">− ${money(r.amount)}</div><div><button class="lnk" data-o="${esc(r.sid)}">Open</button></div></div>`).join(''):'<div class="empty">Returns you process appear here.</div>'
+}
+
+function renderRtPanel(){
+  const el=$('rtPanel'),s=rt.sale;
+  if(!s){
+    if(rt.cands){el.innerHTML='<h2>Which receipt?</h2>'+rt.cands.map(c=>`<div class="ln" style="grid-template-columns:minmax(0,1fr) auto"><div class="nm">${pad(c.no)} · ${money(c.total)}<small>${fmt(c.at)}${c.cashier?' · '+esc(c.cashier):''}</small></div><div><button class="btn sm" data-cand="${esc(c.id)}">Open</button></div></div>`).join('');return}
+    el.innerHTML=rt.miss?`<div class="bnr bad" style="margin-top:0"><b>${esc(rt.miss.t)}</b><small>${esc(rt.miss.s)}</small></div>`:'<div class="empty">Scan a receipt to start a return.<br>You can also type the receipt number and press Find.</div>';
+    return
+  }
+  const I=retInfo(s),why=rtBlock(s),cur=shift&&s.shift===shift.id;
+  s.items.forEach((_,i)=>{const l=leftOf(s,i);if((rt.sel[i]||0)>l)rt.sel[i]=l});
+  const R=calcRefund(s,rt.sel),alt=rt.method==='alt',lim=+cfg.refundLimit||0,need=R.units>0&&(R.amount>lim||alt);
+  let h=`<div class="rth"><div><h2>Receipt ${pad(s.no)}</h2><div class="hint" style="margin:0">${s.rid?'Barcode '+groupRid(s.rid):'Printed before receipt barcodes were added'}</div></div><div class="chips">${stTags(s)}</div></div>`;
+  if(rt.msg)h+=`<div class="bnr ${rt.msg.k==='ok'?'':rt.msg.k}"><b>${esc(rt.msg.t)}</b>${rt.msg.s?'<small>'+esc(rt.msg.s)+'</small>':''}</div>`;
+  if(why)h+=`<div class="bnr bad"><b>${esc(why[0])}</b><small>${esc(why[1])}</small></div>`;
+  else h+=`<div class="bnr"><b>Eligible for return</b><small>Returns are accepted until ${fmt(I.exp)} (${dur(I.exp-Date.now())} left).${I.partial?' Part of this receipt has already been returned.':''}</small></div>`;
+  if(I.open&&!shift)h+=`<div class="bnr warn"><b>No shift is open</b><small>Start a shift to process returns. Each return is recorded against the current shift.</small></div>`;
+  h+=`<div class="kv"><div><small>Purchased</small><b>${fmtDate(s.at)}, ${fmtTime(s.at)}</b></div><div><small>Return deadline</small><b>${fmt(I.exp)}</b></div><div><small>Cashier</small><b>${esc(s.cashier||'—')}</b></div><div><small>Shift started</small><b>${s.shift?fmt(s.shift):'—'}${cur?' · this shift':s.shift?' · earlier shift':''}</b></div><div><small>Payment</small><b>${PM[s.method||'cash']}${s.ref?' · '+esc(s.ref):''}</b></div><div><small>Receipt total</small><b>${money(s.total)}</b></div>${s.rtotal?`<div><small>Refunded so far</small><b class="refund">${money(s.rtotal)}</b></div>`:''}</div>`;
+  h+=`<h2 style="margin:16px 0 0;font-size:16px">Items</h2>`+s.items.map((it,i)=>{
+    const left=leftOf(s,i),got=rqOf(s,i),q=rt.sel[i]||0,can=I.open&&left>0,kg=it.u&&it.u!==1;
+    return `<div class="rti${can?'':' dim'}"><div class="nm" dir="auto">${esc(it.name)}<small>${money(it.price)}${kg?' for '+rd3(it.u)+' kg':' each'} · bought ${it.qty} · returned ${got} · <b>${left} left to return</b></small></div>`+
+      (can?`<div class="q"><button data-m="-1" data-i="${i}" aria-label="Return fewer">−</button><b>${q}</b><button data-m="1" data-i="${i}" aria-label="Return more">+</button></div><select data-c="${i}" aria-label="Condition of returned item"${q?'':' disabled'}><option value="good"${rt.cond[i]==='damaged'?'':' selected'}>Good · can resell</option><option value="damaged"${rt.cond[i]==='damaged'?' selected':''}>Damaged · don’t resell</option></select>`:`<span class="tag mute">${left?'—':'All returned'}</span><span></span>`)+`</div>`}).join('');
+  if(I.open){
+    const orig=PM[s.method||'cash'];
+    h+=`<div class="row"><button class="btn sm" id="rtAll">Return everything left</button><button class="btn sm" id="rtNone">Clear</button></div>
+    <div class="rsum"><div class="tr"><span>Items being returned</span><span>${R.units}</span></div><div class="tr g"><span>Refund</span><span>${money(R.amount)}</span></div></div>
+    <label class="lb" for="rtMeth">Refund to</label><select id="rtMeth" class="w100"><option value="orig"${alt?'':' selected'}>Original payment method: ${orig}</option><option value="alt"${alt?' selected':''}>Original method can’t be refunded (manager decides)</option></select>
+    ${alt?`<label class="lb" for="rtAlt">Alternative refund method</label><select id="rtAlt" class="w100">${Object.keys(PM).map(k=>`<option value="${k}"${rt.alt===k?' selected':''}>${PM[k]}</option>`).join('')}</select>`:`<p class="hint">${s.method==='cash'||!s.method?'Hand the cash back from the drawer.':'Refund the same '+orig+' payment'+(s.ref?' (reference '+esc(s.ref)+')':'')+'.'}</p>`}
+    <label class="lb" for="rtNote">Reason or note (optional)</label><input id="rtNote" class="w100" dir="auto" value="${esc(rt.note)}" autocomplete="off">
+    ${need?`<div class="bnr warn"><b>Manager approval required</b><small>${alt?'An alternative refund method is a manager decision.':'This refund is above the '+money(lim)+' limit.'} ${isOwner()?'You are signed in as a manager, so your approval will be recorded.':'A manager will be asked to sign in.'}</small></div>`:''}
+    <div class="row"><button class="btn p big" id="rtDo"${R.units&&shift&&!rt.busy?'':' disabled'}>${rt.busy?'Processing…':'Process return · '+money(R.amount)}</button></div>`;
+  }
+  const H=returns.filter(r=>r.sid===s.id).sort((a,b)=>a.at-b.at);
+  h+=`<h2 style="margin:20px 0 6px;font-size:16px">Returns on this receipt</h2>`+(H.length?H.map(r=>`<div class="ln" style="grid-template-columns:minmax(0,1fr) auto"><div class="nm">${rtNo(r)} <span class="tag ${r.status==='full'?'no':'low'}">${r.status==='full'?'Full return':'Partial return'}</span><small>${fmt(r.at)} · ${esc(r.cashier||'')} · ${PM[r.method]||''}${r.xs?' · processed on a later shift':''}${r.approval?' · approved by '+esc(r.approval.by):''}</small><small>${(r.lines||[]).map(l=>l.qty+' × '+esc(l.name)+' ('+(DISP[l.disp]||'')+')').join('; ')}</small></div><div class="amt refund">− ${money(r.amount)}</div></div>`).join(''):'<div class="empty" style="padding:12px">No returns yet.</div>');
+  h+=`<div class="row"><button class="btn sm" id="rtPrint">Print receipt</button>${rt.last&&rt.last.sid===s.id?'<button class="btn sm" id="rtSlip">Print refund slip</button>':''}</div>`;
+  el.innerHTML=h
+}
+
+function rtErr(e){
+  console.error(e);
+  if(e&&e.fz)return[e.t||'Return not completed',e.message];
+  const c=e&&e.code;
+  if(c==='unavailable'||c==='deadline-exceeded'||/offline|network/i.test(String(e&&e.message)))return['No connection','The return could not be saved. Nothing was refunded or recorded. Reconnect and try again.'];
+  if(c==='permission-denied')return['Not allowed','Firestore refused the return. Ask the manager to check the database access settings.'];
+  if(c==='aborted'||c==='failed-precondition')return['Receipt changed','Another device changed this receipt while you were working. The receipt has been refreshed. Check it and try again.'];
+  return['Return not completed','Something went wrong and the return was not saved. Nothing was refunded. Try again.'];
+}
+
+async function rtProcess(approval){
+  const s0=rt.sale;if(!s0||rt.busy)return;
+  if(!shift){startDlg();toast('Start a shift first. Returns are recorded against the current shift.');return}
+  const why=rtBlock(s0);if(why){rtBanner('bad',why[0],why[1]);beep(false);return}
+  const R0=calcRefund(s0,rt.sel);if(!R0.units){rtBanner('warn','Nothing selected','Use + to choose the items and quantities the customer is returning.');beep(false);return}
+  if(navigator.onLine===false){rtBanner('bad','No internet connection','Returns can only be saved while online, so the same item can never be refunded twice. Nothing was recorded. Reconnect and try again.');beep(false);return}
+  const alt=rt.method==='alt',lim=+cfg.refundLimit||0;
+  if((R0.amount>lim||alt)&&!approval){
+    if(isOwner())approval={by:profile.name,uid:user.uid,email:user.email||'',mode:'signed-in manager',at:Date.now()};
+    else{openApv(R0,alt);return}
+  }
+  rt.busy=true;rt.msg=null;rt.opId=rt.opId||newId()+newId();renderRtPanel();
+  const opId=rt.opId,sel={...rt.sel},cond={...rt.cond},method=alt?rt.alt:(s0.method||'cash'),note=rt.note.trim(),sh=shift,E=(t,m)=>Object.assign(new Error(m),{fz:1,t});
+  const saleRef=doc(fs,'sales',s0.id),retRef=doc(fs,'returns',opId),setRef=doc(fs,'settings','store');
+  try{
+    const out=await Promise.race([runTransaction(fs,async tx=>{
+      const[ss,rs,cs]=await Promise.all([tx.get(saleRef),tx.get(retRef),tx.get(setRef)]);
+      if(rs.exists())return{dup:{id:opId,...rs.data()}};
+      if(!ss.exists())throw E('Receipt not found','This receipt no longer exists.');
+      const s={id:ss.id,...ss.data()},bl=rtBlock(s);if(bl)throw E(bl[0],bl[1]);
+      for(const[k,q]of Object.entries(sel)){const i=+k;if(q>0&&(!s.items[i]||q>leftOf(s,i)))throw E('Quantity too high','Only '+(s.items[i]?leftOf(s,i):0)+' of '+(s.items[i]?s.items[i].name:'that item')+' can still be returned. Part of it was already refunded.')}
+      const R=calcRefund(s,sel);if(!R.units)throw E('Nothing selected','Choose at least one item to return.');
+      if((R.amount>lim||alt)&&!approval)throw E('Manager approval required','This refund needs a manager’s approval.');
+      const now=Date.now(),no=(cs.exists()&&cs.data().nextRet)||1,up={},mv=[];
+      const lines=R.lines.map(l=>{const it=s.items[l.i],bad=cond[l.i]==='damaged',p=it.pid&&products[it.pid],u=rd3((it.u||1)*l.q);
+        let disp='none';
+        if(p){const o=up[it.pid]||(up[it.pid]={stock:0,dmg:0});
+          if(bad){disp='damaged';o.dmg+=u;mv.push({pid:it.pid,name:it.name,delta:0,dq:u,reason:'Returned damaged (not restocked)'})}
+          else if(p.track){disp='restock';o.stock+=u;mv.push({pid:it.pid,name:it.name,delta:u,reason:'Customer return'})}}
+        else if(bad)disp='damaged';
+        return{i:l.i,name:it.name,code:it.code||'',pid:it.pid||null,price:it.price,qty:l.q,u:it.u??1,cost:it.cost||0,amt:l.amt,cond:bad?'damaged':'good',disp}});
+      const rq=s.items.map((_,i)=>rqOf(s,i)+(Math.floor(+sel[i])||0)),rtotal=rd((+s.rtotal||0)+R.amount),rstat=R.final?'full':'partial';
+      const ret=clean({no,opId,at:now,sid:s.id,sno:s.no,srid:s.rid||'',sat:s.at,sShift:s.shift||null,sCashier:s.cashier||'',
+        shift:sh.id,cashier:sh.cashier,uid:user.uid,by:profile.name,xs:s.shift!==sh.id,
+        lines,amount:R.amount,method,origMethod:s.method||'cash',altRequired:alt,approval:approval||null,note,
+        status:R.full?'full':'partial',completes:R.final});
+      tx.set(setRef,{nextRet:no+1},{merge:true});
+      tx.update(saleRef,{rq,rtotal,rstat,rlast:now});
+      tx.set(retRef,ret);
+      for(const[pid,o]of Object.entries(up)){const d={};if(o.stock)d.stock=increment(rd3(o.stock));if(o.dmg)d.dmg=increment(rd3(o.dmg));if(Object.keys(d).length)tx.update(doc(fs,'products',pid),d)}
+      mv.forEach(m=>tx.set(doc(fs,'stockMoves',newId()),clean({...m,note:rtNo({no})+' · receipt '+pad(s.no),by:profile.name,at:now})));
+      return{ret:{id:opId,...ret},rq,rtotal,rstat}
+    }),new Promise((_,rej)=>setTimeout(()=>rej(E('Connection is slow','We couldn’t confirm the return. Look at “Returns on this receipt” below before trying again. Pressing Process again is safe: the same items can’t be refunded twice.')),25000))]);
+    rt.busy=false;
+    const r=out.dup||out.ret;
+    if(!out.dup){
+      if(!returns.some(x=>x.id===r.id))returns.unshift(r);
+      rt.sale={...rt.sale,rq:out.rq,rtotal:out.rtotal,rstat:out.rstat};
+    }
+    rt.last=r;rt.sel={};rt.cond={};rt.opId=null;rt.note='';rt.method='orig';
+    const done=retInfo(rt.sale).full;
+    rt.msg={k:'ok',t:out.dup?'Return '+rtNo(r)+' was already recorded':'Return '+rtNo(r)+' recorded · '+money(r.amount)+' refunded',s:(r.method==='cash'?'Hand back '+money(r.amount)+' in cash.':'Refund '+money(r.amount)+' to '+PM[r.method]+'.')+(done?' This receipt is now fully returned.':' Items still left to return: '+retInfo(rt.sale).left+'.')};
+    toast('Return '+rtNo(r)+' · '+money(r.amount)+' refunded');beep();renderRtPanel();renderRtRecent();dayChip();rtFocus()
+  }catch(e){
+    rt.busy=false;const m=rtErr(e);rt.msg={k:'bad',t:m[0],s:m[1]};beep(false);
+    const f=sales.find(x=>x.id===s0.id);if(f)rt.sale=f;renderRtPanel()
+  }
+}
+
+/* manager approval: the manager signs in on a separate, temporary Firebase session, so the cashier stays signed in */
+let app2=null,auth2=null;
+async function apprAuth(){if(!app2){app2=initializeApp(firebaseConfig,'approver');auth2=getAuth(app2);await setPersistence(auth2,inMemoryPersistence)}return auth2}
+function openApv(R,alt){
+  $('apvS').textContent=(alt?'The original payment method can’t be refunded, so an alternative needs a manager. ':'')+'Refund '+money(R.amount)+' on receipt '+pad(rt.sale.no)+'. A manager must sign in to approve it.';
+  $('apvE').value='';$('apvP').value='';$('apvErr').textContent='';$('apvGo').disabled=false;$('apv').showModal();$('apvE').focus()
+}
+$('apvX').onclick=()=>$('apv').close();
+$('apvP').onkeydown=e=>{if(e.key==='Enter')$('apvGo').click()};
+$('apvGo').onclick=async()=>{
+  const em=$('apvE').value.trim(),pw=$('apvP').value,er=$('apvErr');er.textContent='';
+  if(!em||!pw){er.textContent='Enter the manager’s email and password.';return}
+  if(navigator.onLine===false){er.textContent='No internet connection. A manager can’t be verified offline.';return}
+  $('apvGo').disabled=true;
+  try{
+    const a=await apprAuth(),cr=await signInWithEmailAndPassword(a,em,pw);
+    let role=null,name='';
+    try{const d=await getDoc(doc(fs,'users',cr.user.uid));if(d.exists()){role=d.data().role;name=d.data().name||''}}catch(x){}
+    await signOut(a).catch(()=>{});
+    if(role!=='owner'){er.textContent='That account is not a manager, so it can’t approve refunds.';$('apvGo').disabled=false;return}
+    $('apv').close();$('apvP').value='';
+    rtProcess({by:name||em.split('@')[0],uid:cr.user.uid,email:em,mode:'manager sign-in',at:Date.now()})
+  }catch(x){er.textContent=AE[x.code]||'Couldn’t verify the manager ('+(x.code||'error')+').';$('apvGo').disabled=false}
+};
+
+/* refund slip */
+function rrHtml(r){
+  const mr=(a,b)=>`<div class="mr"><span class="lab">${a}</span><span>${b}</span></div>`;
+  return `<div class="rc">${rcHead('Return receipt')}${orn}
+    <div class="rc-m">${mr('Return',rtNo(r))}${mr('Date',fmtDate(r.at))}${mr('Time',fmtTime(r.at))}${mr('Original receipt',pad(r.sno))}${mr('Purchased',fmt(r.sat))}${mr('Processed by',esc(r.cashier||''))}</div>
+    <div class="rc-ch"><span class="lab">Item returned</span><span class="lab">Refund</span></div>
+    ${(r.lines||[]).map(l=>`<div class="ri"><b class="rn${hasAr(l.name)?' ar':''}" dir="auto">${esc(l.name)}</b><div class="rq"><span class="rx"><span class="qb">${l.qty}</span> × ${num(l.price)}</span><span class="ra">${num(l.amt)}</span></div></div>`).join('')}
+    <div class="rc-t"><span>Total refund</span><b><em>EGP</em>${num(r.amount)}</b></div>
+    <div class="rc-p">${rowH('Refunded to',PM[r.method]||'')}${r.method!==r.origMethod?rowH('Original payment',PM[r.origMethod]||''):''}${r.approval?rowH('Approved by',esc(r.approval.by)):''}</div>
+    ${orn}<div class="rc-f"><p class="sb">Thank you for shopping at ${esc(cfg.store)}</p></div></div>`
+}
+
+/* receipt details window (Sales tab) */
+let rcdId=null;
+function openDetails(id){
+  const s=sales.find(x=>x.id===id);if(!s)return;rcdId=id;const I=retInfo(s);
+  const H=returns.filter(r=>r.sid===s.id).sort((a,b)=>a.at-b.at);
+  $('rcdBody').innerHTML=`<div class="chips" style="margin-bottom:12px">${stTags(s)}</div><div class="receipt" style="margin-bottom:22px">${rcHtml(s,false)}</div>`+
+    (H.length?`<h2 style="font-size:16px">Returns on this receipt</h2>`+H.map(r=>`<div class="ln" style="grid-template-columns:minmax(0,1fr) auto"><div class="nm">${rtNo(r)}<small>${fmt(r.at)} · ${esc(r.cashier||'')} · ${PM[r.method]||''}${r.xs?' · later shift':''}</small></div><div class="amt refund">− ${money(r.amount)}</div></div>`).join(''):'');
+  $('rcdAct').innerHTML=`<button class="btn" data-a="print">Print</button><button class="btn" data-a="share">Share</button>${I.open?'<button class="btn p" data-a="ret">Return items</button>':''}<button class="btn" data-a="x">Close</button>`;
+  $('rcd').showModal();$('rcd').scrollTop=0
+}
+$('rcdAct').onclick=e=>{const b=e.target.closest('button');if(!b)return;const s=sales.find(x=>x.id===rcdId);
+  if(b.dataset.a==='x'||!s){$('rcd').close();return}
+  if(b.dataset.a==='print')printDoc(rcHtml(s,false));else if(b.dataset.a==='share')shareSale(s);else if(b.dataset.a==='ret'){$('rcd').close();rtOpenSale(s.id)}};
+
+/* returns screen wiring */
+$('rtGo').onclick=()=>rtFind($('rtCode').value);
+$('rtCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();rtFind($('rtCode').value)}};
+$('rtRecent').onclick=e=>{const b=e.target.closest('button[data-o]');if(b)rtOpenSale(b.dataset.o)};
+$('rtPanel').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;const s=rt.sale;
+  if(b.dataset.cand){const c=(rt.cands||[]).find(x=>x.id===b.dataset.cand);if(c){rtLoad(c);rtFocus()}return}
+  if(!s)return;
+  if(b.dataset.m){const i=+b.dataset.i,l=leftOf(s,i);rt.sel[i]=Math.max(0,Math.min(l,(rt.sel[i]||0)+ +b.dataset.m));rt.opId=null;rt.msg=null;renderRtPanel();return}
+  if(b.id==='rtAll'){s.items.forEach((_,i)=>{rt.sel[i]=leftOf(s,i)});rt.opId=null;rt.msg=null;renderRtPanel()}
+  else if(b.id==='rtNone'){rt.sel={};rt.opId=null;rt.msg=null;renderRtPanel()}
+  else if(b.id==='rtDo')rtProcess();
+  else if(b.id==='rtPrint')printDoc(rcHtml(s,false));
+  else if(b.id==='rtSlip'&&rt.last)printDoc(rrHtml(rt.last))
+};
+$('rtPanel').onchange=e=>{const t=e.target;
+  if(t.dataset.c!==undefined){rt.cond[t.dataset.c]=t.value;rt.opId=null}
+  else if(t.id==='rtMeth'){rt.method=t.value;rt.opId=null;renderRtPanel()}
+  else if(t.id==='rtAlt'){rt.alt=t.value;rt.opId=null}};
+$('rtPanel').oninput=e=>{if(e.target.id==='rtNote')rt.note=e.target.value};
 
 /* ---------- settings ---------- */
 let svT;
-function saveCfg(){clearTimeout(svT);svT=setTimeout(()=>setDoc(doc(fs,'settings','store'),{store:cfg.store,social:cfg.social,tax:cfg.tax,lang:cfg.lang,paper:cfg.paper,rsize:cfg.rsize,autoPrint:!!cfg.autoPrint},{merge:true}).catch(syncErr),500)}
+function saveCfg(){clearTimeout(svT);svT=setTimeout(()=>setDoc(doc(fs,'settings','store'),{store:cfg.store,social:cfg.social,tax:cfg.tax,lang:cfg.lang,paper:cfg.paper,rsize:cfg.rsize,autoPrint:!!cfg.autoPrint,refundLimit:cfg.refundLimit},{merge:true}).catch(syncErr),500)}
 function renderSettings(){
-  if(!cfgFilled){cfgFilled=true;$('sName').value=cfg.store;$('sSocial').value=cfg.social;$('sTax').value=cfg.tax;$('sPaper').value=cfg.paper;$('sSize').value=RF[cfg.rsize]?cfg.rsize:'m';$('sLang').value=cfg.lang;$('sAuto').checked=!!cfg.autoPrint}
+  if(!cfgFilled){cfgFilled=true;$('sName').value=cfg.store;$('sSocial').value=cfg.social;$('sTax').value=cfg.tax;$('sPaper').value=cfg.paper;$('sSize').value=RF[cfg.rsize]?cfg.rsize:'m';$('sLang').value=cfg.lang;$('sRefund').value=cfg.refundLimit;$('sAuto').checked=!!cfg.autoPrint}
   const legacy=Object.keys(ld('scantill-products-v1',{})).length;$('mig').hidden=!legacy;$('migH').textContent=legacy?legacy+' products from the old ScanTill page are saved in this browser.':'';
   renderTeam();
 }
 const bind=(id,fn)=>$(id).addEventListener('input',()=>{fn($(id));render();saveCfg()});
-bind('sName',e=>cfg.store=e.value.trim()||'Fazara');bind('sSocial',e=>cfg.social=e.value.trim());bind('sTax',e=>cfg.tax=Math.max(0,parseFloat(e.value)||0));bind('sPaper',e=>cfg.paper=e.value);bind('sSize',e=>cfg.rsize=e.value);bind('sLang',e=>cfg.lang=e.value);
+bind('sName',e=>cfg.store=e.value.trim()||'Fazara');bind('sSocial',e=>cfg.social=e.value.trim());bind('sTax',e=>cfg.tax=Math.max(0,parseFloat(e.value)||0));bind('sPaper',e=>cfg.paper=e.value);bind('sSize',e=>cfg.rsize=e.value);bind('sLang',e=>cfg.lang=e.value);bind('sRefund',e=>{const v=parseFloat(e.value);cfg.refundLimit=v>=0?v:DEF.refundLimit});
 $('sAuto').onchange=()=>{cfg.autoPrint=$('sAuto').checked;saveCfg()};
 $('mig').onclick=async()=>{const o=ld('scantill-products-v1',{});$('mig').disabled=true;try{toast('Uploaded '+await importProducts(o)+' products')}catch(e){syncErr(e)}$('mig').disabled=false};
 function renderTeam(){
